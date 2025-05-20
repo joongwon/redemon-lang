@@ -1,0 +1,11 @@
+(library
+ (name redemon_lang__tree)
+ (preprocess
+  (pps ppx_deriving.show ppx_deriving.eq)))
+
+(menhir
+ (modules parser))
+
+(ocamllex lexer)
+
+(include_subdirs no)

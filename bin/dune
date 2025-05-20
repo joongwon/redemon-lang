@@ -1,0 +1,4 @@
+(executable
+ (public_name redemon-lang)
+ (name main)
+ (libraries redemon_lang))

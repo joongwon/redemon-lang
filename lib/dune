@@ -1,0 +1,5 @@
+(library
+ (name redemon_lang)
+ (libraries redemon_lang__tree))
+
+(include_subdirs qualified)

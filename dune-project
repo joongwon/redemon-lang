@@ -1,7 +1,7 @@
-(lang dune 3.18)
+(lang dune 3.17)
 (using menhir 3.0)
 
-(name redemon-lang)
+(name redemon_lang)
 
 (generate_opam_files true)
 
@@ -9,7 +9,7 @@
  (github joongwon/redemon-lang))
 
 (package
- (name redemon-lang)
+ (name redemon_lang)
  (depends
   ocaml
   menhir
@@ -17,5 +17,6 @@
   base
   js_of_ocaml
   js_of_ocaml-ppx
+  ppx_deriving
   yojson
   ppx_yojson_conv))

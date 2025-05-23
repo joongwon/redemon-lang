@@ -1,5 +1,5 @@
 (library
- (name redemon_lang__tree)
+ (name tree)
  (preprocess
   (pps ppx_yojson_conv ppx_deriving.show ppx_deriving.eq)))
 

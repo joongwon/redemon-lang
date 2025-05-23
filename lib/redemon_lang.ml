@@ -1,1 +1,1 @@
-module Tree = Redemon_lang__tree
+module Tree = Tree

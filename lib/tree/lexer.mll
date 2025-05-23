@@ -14,8 +14,10 @@ rule token = parse
   | [' ' '\t']* (([^'{' '<' '\n']*[^'{' '<' ' ' '\t' '\n']) as text) { TEXT text }
   | "{\"" ([^'"' '\n']+ as value) "\"}" { CONST (String value) }
   | "{" (['0'-'9']+ as value) "}" { CONST (Int (int_of_string value)) }
+  (*
   | "{true}" { CONST (Bool true) }
   | "{false}" { CONST (Bool false) }
+  *)
   | eof { EOF }
   | _ { raise (LexingError (Printf.sprintf "Unexpected character: %c" (Lexing.lexeme_char lexbuf 0), Lexing.lexeme_start_p lexbuf)) }
 
@@ -26,7 +28,9 @@ and props tagname acc = parse
   | "/>" { SELF (tagname, List.rev acc) }
   | (word as name) "=\"" ([^'"' '\n']+ as value) '"' { props tagname ((name, AttrConst (String value)) :: acc) lexbuf }
   | (word as name) "={" (['0'-'9']+ as value) "}" { props tagname ((name, AttrConst (Int (int_of_string value))) :: acc) lexbuf }
+  (*
   | (word as name) "={true}" { props tagname ((name, AttrConst (Bool true)) :: acc) lexbuf }
   | (word as name) "={false}" { props tagname ((name, AttrConst (Bool false)) :: acc) lexbuf }
-  | (word as name) "={$}" { props tagname ((name, AttrFunc) :: acc) lexbuf }
+  *)
+  | (word as name) "={$" (['0'-'9']+ as label) "}" { props tagname ((name, AttrFunc (int_of_string label)) :: acc) lexbuf }
   | _ { raise (LexingError (Printf.sprintf "Unexpected character in attribute: %c" (Lexing.lexeme_char lexbuf 0), Lexing.lexeme_start_p lexbuf)) }

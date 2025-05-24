@@ -3,3 +3,8 @@
  (libraries tree))
 
 (include_subdirs qualified)
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))

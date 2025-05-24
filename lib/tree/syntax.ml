@@ -6,13 +6,13 @@ type label = int [@@deriving eq, show, yojson_of]
 type attr_value = AttrConst of const | AttrFunc of label
 [@@deriving eq, show, yojson_of]
 
-type tree =
-  | Const of const
-  | Elem of {
-      name : string;
-      attrs : (string * attr_value) list;
-      children : tree list;
-    }
+type tree = Const of const | Elem of elem
+
+and elem = {
+  name : string;
+  attrs : (string * attr_value) list;
+  children : tree list;
+}
 [@@deriving eq, show, yojson_of]
 
 let tree_const c = Const c

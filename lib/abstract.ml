@@ -300,28 +300,24 @@ type demo = { init : tree; steps : demo_step list }
 type abstraction = {
   sketch : texpr;
   init : record;
-  steps : (action * record) list;
+  steps_rev : (action * record) list;
 }
 
-let abstract ({ init; steps } : demo) : abstraction =
-  let step (e : texpr) (env : record) (edits : (path * edit) list) :
-      texpr * (record -> record) * record =
-    List.fold_left
+let init_abstraction (init : tree) : abstraction =
+  let sketch = texpr_of_tree init in
+  { sketch; init = []; steps_rev = [] }
+
+let add_step ({sketch; init; steps_rev} : abstraction) (action : action)
+    (edits : (path * edit) list) : abstraction =
+  let last_env = match steps_rev with
+    | [] -> init
+    | (_, env) :: _ -> env
+  in
+  let sketch', s, env' = List.fold_left
       (fun (e, s, env) (path, edit) ->
         let e', s', env' = abstract_step_traverse path edit e env in
         (e', Fun.compose s' s, env'))
-      (e, Fun.id, env) edits
+      (sketch, Fun.id, last_env) edits
   in
-  let sketch, actions, envs, last_env =
-    List.fold_left
-      (fun (sketch, actions, envs, last_env) (action, edits) ->
-        let sketch', s, env' = step sketch last_env edits in
-        let actions' = action :: actions in
-        let envs' = List.map s (last_env :: envs) in
-        (sketch', actions', envs', env'))
-      (texpr_of_tree init, [], [], [])
-      steps
-  in
-  let actions = List.rev actions in
-  let envs = List.rev (last_env :: envs) in
-  { sketch; init = List.hd envs; steps = List.combine actions (List.tl envs) }
+  let steps_rev' = (action, env') :: (List.map (fun (a, e) -> (a, s e)) steps_rev) in
+  { sketch = sketch'; init = s init; steps_rev = steps_rev' }

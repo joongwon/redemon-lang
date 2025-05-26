@@ -229,20 +229,21 @@ let init_abstraction (init : tree) : abstraction =
   let sketch = texpr_of_tree init in
   { sketch; init = []; steps = [] }
 
-let add_step ({sketch; init; steps} : abstraction) ((action, edits) : demo_step) : abstraction =
-  let last_env = match List.rev steps with
-    | [] -> init
-    | (_, env) :: _ -> env
+let add_step ({ sketch; init; steps } : abstraction)
+    ((action, edits) : demo_step) : abstraction =
+  let last_env =
+    match List.rev steps with [] -> init | (_, env) :: _ -> env
   in
-  let sketch', s, env' = List.fold_left
+  let sketch', s, env' =
+    List.fold_left
       (fun (e, s, env) (path, edit) ->
         let e', s', env' = abstract_step_traverse path edit e env in
         (e', Fun.compose s' s, env'))
       (sketch, Fun.id, last_env) edits
   in
-  let steps' = (List.map (fun (a, e) -> (a, s e)) steps) @ [(action, env')] in
+  let steps' = List.map (fun (a, e) -> (a, s e)) steps @ [ (action, env') ] in
   { sketch = sketch'; init = s init; steps = steps' }
 
-let abstract_demo ({init; steps} : demo) : abstraction =
+let abstract_demo ({ init; steps } : demo) : abstraction =
   let init = init_abstraction init in
   List.fold_left add_step init steps

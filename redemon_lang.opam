@@ -3,7 +3,7 @@ opam-version: "2.0"
 homepage: "https://github.com/joongwon/redemon-lang"
 bug-reports: "https://github.com/joongwon/redemon-lang/issues"
 depends: [
-  "ocaml"
+  "ocaml" {>= "5.2.0"}
   "menhir"
   "dune" {>= "3.17"}
   "base"

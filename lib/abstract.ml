@@ -300,16 +300,15 @@ type demo = { init : tree; steps : demo_step list }
 type abstraction = {
   sketch : texpr;
   init : record;
-  steps_rev : (action * record) list;
+  steps : (action * record) list;
 }
 
 let init_abstraction (init : tree) : abstraction =
   let sketch = texpr_of_tree init in
-  { sketch; init = []; steps_rev = [] }
+  { sketch; init = []; steps = [] }
 
-let add_step ({sketch; init; steps_rev} : abstraction) (action : action)
-    (edits : (path * edit) list) : abstraction =
-  let last_env = match steps_rev with
+let add_step ({sketch; init; steps} : abstraction) ((action, edits) : demo_step) : abstraction =
+  let last_env = match List.rev steps with
     | [] -> init
     | (_, env) :: _ -> env
   in
@@ -319,5 +318,5 @@ let add_step ({sketch; init; steps_rev} : abstraction) (action : action)
         (e', Fun.compose s' s, env'))
       (sketch, Fun.id, last_env) edits
   in
-  let steps_rev' = (action, env') :: (List.map (fun (a, e) -> (a, s e)) steps_rev) in
-  { sketch = sketch'; init = s init; steps_rev = steps_rev' }
+  let steps' = (List.map (fun (a, e) -> (a, s e)) steps) @ [(action, env')] in
+  { sketch = sketch'; init = s init; steps = steps' }

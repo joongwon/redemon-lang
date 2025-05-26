@@ -113,7 +113,6 @@ let rec teval (e : texpr) (env : record) : tree option =
   | Val v -> (
       match veval v env with
       | Const c -> Some (tree_const c)
-      | Null -> None
       | _ -> failwith "Expected a constant")
   | Elem { name; attrs; children } ->
       Some

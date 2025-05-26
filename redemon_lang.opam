@@ -5,10 +5,11 @@ bug-reports: "https://github.com/joongwon/redemon-lang/issues"
 depends: [
   "ocaml"
   "menhir"
-  "dune" {>= "3.18"}
+  "dune" {>= "3.17"}
   "base"
   "js_of_ocaml"
   "js_of_ocaml-ppx"
+  "ppx_deriving"
   "yojson"
   "ppx_yojson_conv"
   "odoc" {with-doc}
@@ -28,4 +29,3 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/joongwon/redemon-lang.git"
-x-maintenance-intent: ["(latest)"]

@@ -11,7 +11,7 @@
 (package
  (name redemon_lang)
  (depends
-  ocaml
+  (ocaml (>= 5.2.0))
   menhir
   dune
   base

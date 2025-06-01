@@ -1,8 +1,9 @@
 open Alcotest
 open Redemon_lang.Tree.Syntax
+open Redemon_lang.Tree
+open Redemon_lang
 
 let test_parse_tree (name, input, expected) =
-  let open Redemon_lang.Tree in
   test_case name `Quick (fun () ->
       try
         let result = Parser.document Lexer.token (Lexing.from_string input) in
@@ -30,7 +31,7 @@ let parse_tree_testcases =
           ("f", AttrFunc 1);
         ]
         [] );
-    ( "redemon_ui_sample",
+    ( "counter example",
       {|<div className="flex flex-col items-center">
   <span className="font-semibold text-lg">
     0
@@ -62,6 +63,55 @@ let parse_tree_testcases =
       tree_elem "hello" [] [ tree_const (Int 1) ] );
   ]
 
+let test_init_abstraction (name, input, expected) =
+  test_case name `Quick (fun () ->
+    let result = Abstract.texpr_of_tree input in
+    check (testable Texpr.pp_texpr Texpr.equal_texpr) name expected result)
+
+let init_abstraction_testcases =
+  [
+    "text", tree_const (String "foo"), Texpr.Val (Const (String "foo"));
+    "counter example",
+    tree_elem "div"
+        [ ("className", AttrConst (String "flex flex-col items-center")) ]
+        [
+          tree_elem "span"
+            [ ("className", AttrConst (String "font-semibold text-lg")) ]
+            [ tree_const (String "0") ];
+          tree_elem "button"
+            [
+              ( "className",
+                AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
+              );
+              ("onClick", AttrFunc 1);
+            ]
+            [ tree_const (String "Increment") ];
+        ],
+    Texpr.Elem {
+      name = "div";
+      attrs = [ ("className", AttrConst (Const (String "flex flex-col items-center"))) ];
+      children =
+        Texpr.Fixed
+          [
+            Texpr.Elem {
+              name = "span";
+              attrs = [ ("className", AttrConst (Const (String "font-semibold text-lg"))) ];
+              children = Texpr.Fixed [ Texpr.Val (Const (String "0")) ];
+            };
+            Texpr.Elem {
+              name = "button";
+              attrs =
+                [
+                  ("className", AttrConst (Const (String "bg-stone-500 text-white px-2 py-1 rounded")));
+                  ("onClick", AttrFunc 1);
+                ];
+              children = Texpr.Fixed [ Texpr.Val (Const (String "Increment")) ];
+            };
+          ]
+    }
+  ]
+
 let () =
   run "Redemon Lang Tests"
-    [ ("Parse Tree", List.map test_parse_tree parse_tree_testcases) ]
+    [ ("Parse Tree", List.map test_parse_tree parse_tree_testcases);
+      ("Init Abstraction", List.map test_init_abstraction init_abstraction_testcases) ]

@@ -1,15 +1,20 @@
 open Tree.Syntax
 
 type var = int
+[@@deriving eq, show]
 type vexpr = Const of const | Var of var
+[@@deriving eq, show]
 type aexpr = AttrConst of vexpr | AttrFunc of label
+[@@deriving eq, show]
 
 type texpr = Val of vexpr | Elem of elem | OMap of { var : var; body : texpr }
 and elem = { name : string; attrs : (string * aexpr) list; children : lexpr }
 and lexpr = Fixed of texpr list | LMap of { var : var; body : texpr }
+[@@deriving eq, show]
 
 type value = Const of const | Null | List of record list | Record of record
 and record = (var * value) list
+[@@deriving eq, show]
 
 let record_update (r : record) (v : var) (value : value) : record =
   (v, value) :: List.remove_assoc v r

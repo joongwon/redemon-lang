@@ -1,6 +1,8 @@
 (library
  (name redemon_lang)
- (libraries tree))
+ (libraries tree)
+ (preprocess
+  (pps ppx_deriving.show ppx_deriving.eq)))
 
 (include_subdirs qualified)
 

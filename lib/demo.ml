@@ -9,7 +9,7 @@ type edit =
   | Insert of int * tree
   | SetAttr of string * const option
 
-type action = Click of label | Input of label * string
+type action = Click of label | Input of label * string [@@deriving eq, show]
 type demo_step = action * (path * edit) list
 type demo = { init : tree; steps : demo_step list }
 

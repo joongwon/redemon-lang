@@ -65,14 +65,14 @@ let parse_tree_testcases =
 
 let test_init_abstraction (name, input, expected) =
   test_case name `Quick (fun () ->
-    let result = Abstract.texpr_of_tree input in
-    check (testable Texpr.pp_texpr Texpr.equal_texpr) name expected result)
+      let result = Abstract.texpr_of_tree input in
+      check (testable Texpr.pp_texpr Texpr.equal_texpr) name expected result)
 
 let init_abstraction_testcases =
   [
-    "text", tree_const (String "foo"), Texpr.Val (Const (String "foo"));
-    "counter example",
-    tree_elem "div"
+    ("text", tree_const (String "foo"), Texpr.Val (Const (String "foo")));
+    ( "counter example",
+      tree_elem "div"
         [ ("className", AttrConst (String "flex flex-col items-center")) ]
         [
           tree_elem "span"
@@ -87,31 +87,133 @@ let init_abstraction_testcases =
             ]
             [ tree_const (String "Increment") ];
         ],
-    Texpr.Elem {
-      name = "div";
-      attrs = [ ("className", AttrConst (Const (String "flex flex-col items-center"))) ];
-      children =
-        Texpr.Fixed
-          [
-            Texpr.Elem {
-              name = "span";
-              attrs = [ ("className", AttrConst (Const (String "font-semibold text-lg"))) ];
-              children = Texpr.Fixed [ Texpr.Val (Const (String "0")) ];
-            };
-            Texpr.Elem {
-              name = "button";
-              attrs =
-                [
-                  ("className", AttrConst (Const (String "bg-stone-500 text-white px-2 py-1 rounded")));
-                  ("onClick", AttrFunc 1);
-                ];
-              children = Texpr.Fixed [ Texpr.Val (Const (String "Increment")) ];
-            };
-          ]
-    }
+      Texpr.Elem
+        {
+          name = "div";
+          attrs =
+            [
+              ( "className",
+                AttrConst (Const (String "flex flex-col items-center")) );
+            ];
+          children =
+            Texpr.Fixed
+              [
+                Texpr.Elem
+                  {
+                    name = "span";
+                    attrs =
+                      [
+                        ( "className",
+                          AttrConst (Const (String "font-semibold text-lg")) );
+                      ];
+                    children = Texpr.Fixed [ Texpr.Val (Const (String "0")) ];
+                  };
+                Texpr.Elem
+                  {
+                    name = "button";
+                    attrs =
+                      [
+                        ( "className",
+                          AttrConst
+                            (Const
+                               (String
+                                  "bg-stone-500 text-white px-2 py-1 rounded"))
+                        );
+                        ("onClick", AttrFunc 1);
+                      ];
+                    children =
+                      Texpr.Fixed [ Texpr.Val (Const (String "Increment")) ];
+                  };
+              ];
+        } );
+  ]
+
+let test_abstract_demo (name, input, expected) =
+  test_case name `Quick (fun () ->
+      let result = Abstract.abstract_demo input in
+      check
+        (testable Abstract.pp_abstraction Abstract.equal_abstraction)
+        name expected result)
+
+let abstract_demo_testcases =
+  [
+    ( "counter demo",
+      Demo.
+        {
+          init =
+            tree_elem "div"
+              [ ("className", AttrConst (String "flex flex-col items-center")) ]
+              [
+                tree_elem "span"
+                  [ ("className", AttrConst (String "font-semibold text-lg")) ]
+                  [ tree_const (String "0") ];
+                tree_elem "button"
+                  [
+                    ( "className",
+                      AttrConst
+                        (String "bg-stone-500 text-white px-2 py-1 rounded") );
+                    ("onClick", AttrFunc 1);
+                  ]
+                  [ tree_const (String "Increment") ];
+              ];
+          steps = [ (Demo.Click 1, [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
+                    (Demo.Click 1, [ ([ 0; 0 ], Demo.Replace (String "2")) ]) ];
+        },
+      Abstract.
+        {
+          sketch =
+            Texpr.Elem
+              {
+                name = "div";
+                attrs =
+                  [
+                    ( "className",
+                      AttrConst (Const (String "flex flex-col items-center")) );
+                  ];
+                children =
+                  Texpr.Fixed
+                    [
+                      Texpr.Elem
+                        {
+                          name = "span";
+                          attrs =
+                            [
+                              ( "className",
+                                AttrConst
+                                  (Const (String "font-semibold text-lg")) );
+                            ];
+                          children = Texpr.Fixed [ Texpr.Val (Var 0) ];
+                        };
+                      Texpr.Elem
+                        {
+                          name = "button";
+                          attrs =
+                            [
+                              ( "className",
+                                AttrConst
+                                  (Const
+                                     (String
+                                        "bg-stone-500 text-white px-2 py-1 \
+                                         rounded")) );
+                              ("onClick", AttrFunc 1);
+                            ];
+                          children =
+                            Texpr.Fixed
+                              [ Texpr.Val (Const (String "Increment")) ];
+                        };
+                    ];
+              };
+          init = [ (0, Texpr.Const (String "0")) ];
+          steps = [ (Demo.Click 1, [ (0, Texpr.Const (String "1")) ]);
+                    (Demo.Click 1, [ (0, Texpr.Const (String "2")) ]) ];
+        } );
   ]
 
 let () =
   run "Redemon Lang Tests"
-    [ ("Parse Tree", List.map test_parse_tree parse_tree_testcases);
-      ("Init Abstraction", List.map test_init_abstraction init_abstraction_testcases) ]
+    [
+      ("Parse Tree", List.map test_parse_tree parse_tree_testcases);
+      ( "Init Abstraction",
+        List.map test_init_abstraction init_abstraction_testcases );
+      ("Abstract Demo", List.map test_abstract_demo abstract_demo_testcases);
+    ]

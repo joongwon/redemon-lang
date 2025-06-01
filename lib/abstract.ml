@@ -7,6 +7,7 @@ type abstraction = {
   init : record;
   steps : (action * record) list;
 }
+[@@deriving eq, show]
 
 exception Not_supported of string
 

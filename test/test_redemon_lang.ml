@@ -155,9 +155,21 @@ let abstract_demo_testcases =
                     ("onClick", AttrFunc 1);
                   ]
                   [ tree_const (String "Increment") ];
+                tree_elem "button"
+                  [
+                    ( "className",
+                      AttrConst
+                        (String "bg-stone-500 text-white px-2 py-1 rounded") );
+                    ("onClick", AttrFunc 2);
+                  ]
+                  [ tree_const (String "Decrement") ];
               ];
-          steps = [ (Demo.Click 1, [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
-                    (Demo.Click 1, [ ([ 0; 0 ], Demo.Replace (String "2")) ]) ];
+          steps =
+            [
+              (Demo.Click 1, [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
+              (Demo.Click 1, [ ([ 0; 0 ], Demo.Replace (String "2")) ]);
+              (Demo.Click 2, [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
+            ];
         },
       Abstract.
         {
@@ -201,11 +213,32 @@ let abstract_demo_testcases =
                             Texpr.Fixed
                               [ Texpr.Val (Const (String "Increment")) ];
                         };
+                      Texpr.Elem
+                        {
+                          name = "button";
+                          attrs =
+                            [
+                              ( "className",
+                                AttrConst
+                                  (Const
+                                     (String
+                                        "bg-stone-500 text-white px-2 py-1 \
+                                         rounded")) );
+                              ("onClick", AttrFunc 2);
+                            ];
+                          children =
+                            Texpr.Fixed
+                              [ Texpr.Val (Const (String "Decrement")) ];
+                        };
                     ];
               };
           init = [ (0, Texpr.Const (String "0")) ];
-          steps = [ (Demo.Click 1, [ (0, Texpr.Const (String "1")) ]);
-                    (Demo.Click 1, [ (0, Texpr.Const (String "2")) ]) ];
+          steps =
+            [
+              (Demo.Click 1, [ (0, Texpr.Const (String "1")) ]);
+              (Demo.Click 1, [ (0, Texpr.Const (String "2")) ]);
+              (Demo.Click 2, [ (0, Texpr.Const (String "1")) ]);
+            ];
         } );
   ]
 

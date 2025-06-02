@@ -166,9 +166,9 @@ let abstract_demo_testcases =
               ];
           steps =
             [
-              (Demo.Click 1, [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
-              (Demo.Click 1, [ ([ 0; 0 ], Demo.Replace (String "2")) ]);
-              (Demo.Click 2, [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
+              ((1, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
+              ((1, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "2")) ]);
+              ((2, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
             ];
         },
       Abstract.
@@ -235,9 +235,9 @@ let abstract_demo_testcases =
           init = [ (0, Texpr.Const (String "0")) ];
           steps =
             [
-              (Demo.Click 1, [ (0, Texpr.Const (String "1")) ]);
-              (Demo.Click 1, [ (0, Texpr.Const (String "2")) ]);
-              (Demo.Click 2, [ (0, Texpr.Const (String "1")) ]);
+              ((1, Demo.Click, None), [ (0, Texpr.Const (String "1")) ]);
+              ((1, Demo.Click, None), [ (0, Texpr.Const (String "2")) ]);
+              ((2, Demo.Click, None), [ (0, Texpr.Const (String "1")) ]);
             ];
         } );
   ]

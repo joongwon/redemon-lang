@@ -1,15 +1,17 @@
 open Tree.Syntax
 
-type var = int
-type vexpr = Const of const | Var of var
-type aexpr = AttrConst of vexpr | AttrFunc of label
+type var = int [@@deriving eq, show]
+type vexpr = Const of const | Var of var [@@deriving eq, show]
+type aexpr = AttrConst of vexpr | AttrFunc of label [@@deriving eq, show]
 
 type texpr = Val of vexpr | Elem of elem | OMap of { var : var; body : texpr }
 and elem = { name : string; attrs : (string * aexpr) list; children : lexpr }
+
 and lexpr = Fixed of texpr list | LMap of { var : var; body : texpr }
+[@@deriving eq, show]
 
 type value = Const of const | Null | List of record list | Record of record
-and record = (var * value) list
+and record = (var * value) list [@@deriving eq, show]
 
 let record_update (r : record) (v : var) (value : value) : record =
   (v, value) :: List.remove_assoc v r
@@ -62,7 +64,7 @@ let string_of_aexpr ~(prefix : string) (e : aexpr) =
   | AttrConst v -> Printf.sprintf "{%s}" (string_of_vexpr ~prefix v)
   | AttrFunc l -> Printf.sprintf "{$%d}" l
 
-let rec string_of_texpr ~(prefix : string) (e : texpr) =
+let rec js_of_texpr ~(prefix : string) (e : texpr) =
   match e with
   | Val v -> string_of_vexpr ~prefix v
   | Elem { name; attrs; children } ->
@@ -70,31 +72,46 @@ let rec string_of_texpr ~(prefix : string) (e : texpr) =
         String.concat " "
           (List.map (fun (k, v) -> k ^ "=" ^ string_of_aexpr ~prefix v) attrs)
       in
-      let children_str = string_of_lexpr ~prefix children in
+      let children_str = js_of_lexpr ~prefix children in
       Printf.sprintf "<%s %s>%s</%s>" name attrs_str children_str name
   | OMap { var; body } ->
       let inner_var = prefix ^ string_of_int var in
       let inner_prefix = inner_var ^ ".x" in
       Printf.sprintf "%s && %s" inner_var
-        (string_of_texpr ~prefix:inner_prefix body)
+        (js_of_texpr ~prefix:inner_prefix body)
 
-and string_of_texpr_child ~prefix e =
+and js_of_texpr_child ~prefix e =
   match e with
-  | Val _ | OMap _ -> "{" ^ string_of_texpr ~prefix e ^ "}"
-  | Elem _ -> string_of_texpr ~prefix e
+  | Val _ | OMap _ -> "{" ^ js_of_texpr ~prefix e ^ "}"
+  | Elem _ -> js_of_texpr ~prefix e
 
-and string_of_lexpr ~prefix e =
+and js_of_lexpr ~prefix e =
   match e with
-  | Fixed es -> String.concat "" (List.map (string_of_texpr_child ~prefix) es)
+  | Fixed es -> String.concat "" (List.map (js_of_texpr_child ~prefix) es)
   | LMap { var; body } ->
       let inner_var = "item" in
       let inner_prefix = inner_var ^ ".x" in
       Printf.sprintf "{%s.map(%s => %s)}"
         (prefix ^ string_of_int var)
         inner_var
-        (string_of_texpr ~prefix:inner_prefix body)
+        (js_of_texpr ~prefix:inner_prefix body)
 
 let default_prefix = "x"
+
+let rec js_of_value (v : value) : string =
+  match v with
+  | Const c -> string_of_const c
+  | Null -> "null"
+  | List l ->
+      "[" ^ String.concat ", " (List.map (fun r -> js_of_record r) l) ^ "]"
+  | Record r -> js_of_record r
+and js_of_record (r : record) : string =
+  "{" ^
+  String.concat ", "
+    (List.map (fun (v, value) ->
+         Printf.sprintf "%s: %s" (default_prefix ^ string_of_int v)
+           (js_of_value value))
+        r) ^ "}"
 
 let veval (e : vexpr) (env : record) : value =
   match e with Const c -> Const c | Var v -> List.assoc v env

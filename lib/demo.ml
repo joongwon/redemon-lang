@@ -55,9 +55,7 @@ let apply_do (edit : edit) (t : tree) : tree =
       Elem { t with attrs = attrs' }
   | SetAttr (key, Some value), Elem ({ attrs; _ } as t) ->
       (* Set or update the attribute *)
-      let attrs' =
-        (key, Tree.Syntax.AttrConst value) :: List.remove_assoc key attrs
-      in
+      let attrs' = (key, AttrConst value) :: List.remove_assoc key attrs in
       Elem { t with attrs = attrs' }
   | (Dup _ | Del _ | Insert _ | SetAttr _), Const _ ->
       raise (Type_error "Cannot apply edit to Const")

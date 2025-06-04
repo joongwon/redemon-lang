@@ -3,7 +3,7 @@ open Demo
 open Texpr
 
 type abstraction = {
-  sketch : texpr;
+  sketch : expr;
   init : record;
   steps : (action * record) list;
 }
@@ -11,60 +11,79 @@ type abstraction = {
 
 exception Not_supported of string
 
-let aexpr_of_attr_value (v : attr_value) : aexpr =
-  match v with AttrFunc l -> AttrFunc l | AttrConst c -> AttrConst (Const c)
+let expr_of_attr_value (v : attr_value) : expr =
+  match v with AttrFunc l -> HandlerHole l | AttrConst c -> Const c
 
-(* texpr_of_tree t = e => teval e [] = t *)
-let rec texpr_of_tree (t : tree) : texpr =
+(* expr_of_tree t = e => eval e [] = t *)
+let rec expr_of_tree (t : tree) : expr =
   match t with
-  | Const c -> Val (Const c)
+  | Const c -> Const c
   | Elem { name; attrs; children } ->
       Elem
         {
           name;
-          attrs = List.map (fun (k, v) -> (k, aexpr_of_attr_value v)) attrs;
-          children = Fixed (List.map texpr_of_tree children);
+          attrs = List.map (fun (k, v) -> (k, expr_of_attr_value v)) attrs;
+          children = List (List.map expr_of_tree children);
         }
 
-let abstract_step (edit : edit) (e : texpr) (env : record) :
-    texpr * (record -> record) * record =
+let record_update (r : record) (var : var) (v : value) : record =
+  (var, v) :: List.remove_assoc var r
+
+let fresh_var (r : record) : var =
+  let keys = List.map fst r in
+  1 + List.fold_left max 0 keys
+
+let rec free_vars (e : expr) : var list =
+  match e with
+  | Const _ -> []
+  | Access var -> [ var ]
+  | Elem { name = _; attrs; children } ->
+      free_vars children @ List.concat_map (fun (_, v) -> free_vars v) attrs
+  | ListMap { lst; _ } -> [ lst ]
+  | HandlerHole _ -> []
+  | OptionMap { opt; _ } -> [ opt ]
+  | Record kvs -> List.concat_map (fun (_, v) -> free_vars v) kvs
+  | List l -> List.concat_map free_vars l
+
+let list_of_value (v : value) : value list =
+  match v with
+  | List lst -> lst
+  | _ -> raise (Type_error "Expected List for list_of_value")
+
+let abstract_step (edit : edit) (e : expr) (env : record) :
+    expr * (record -> record) * record =
   match (edit, e) with
-  | _, OMap _ -> raise (Invalid_argument "OMap should have been traversed")
-  | Replace new_c, Val (Var var) ->
+  | Replace new_c, Access var ->
       let e' = e in
       let s = Fun.id in
       let env' = record_update env var (Const new_c) in
       (e', s, env')
-  | Replace new_c, Val (Const old_c) ->
+  | Replace new_c, Const old_c ->
       let var = fresh_var env in
-      let e' = Val (Var var) in
+      let e' = Access var in
       let s env = record_update env var (Const old_c) in
       let env' = record_update env var (Const new_c) in
       (e', s, env')
-  | (Dup _ | Del _ | Insert _ | SetAttr _), Val _ ->
-      raise (Type_error "Cannot apply edit to Val")
-  | Replace _, Elem _ -> raise (Type_error "Cannot replace Elem with Const")
-  | Dup 0, Elem ({ children = Fixed [ child ]; _ } as elem) ->
+  | Dup 0, Elem ({ children = List [ child ]; _ } as elem) ->
       let var = fresh_var env in
-      let vars = free_vars_texpr child in
-      let e' = Elem { elem with children = LMap { var; body = child } } in
+      let vars = free_vars child in
+      let e' =
+        Elem { elem with children = ListMap { lst = var; body = child } }
+      in
       let s env =
         let child_env, new_env =
           List.partition (fun (v, _) -> List.mem v vars) env
         in
-        record_update new_env var (List [ child_env ])
+        record_update new_env var (List [ Record child_env ])
       in
       let env' =
         let child_env, new_env =
           List.partition (fun (v, _) -> List.mem v vars) env
         in
-        record_update new_env var (List [ child_env; child_env ])
+        record_update new_env var (List [ Record child_env; Record child_env ])
       in
       (e', s, env')
-  | Dup _, Elem { children = Fixed _; _ } ->
-      raise
-        (Not_supported "Duplication not supported for fixed multiple children")
-  | Dup i, Elem { children = LMap { var; _ }; _ } ->
+  | Dup i, Elem { children = ListMap { lst = var; _ }; _ } ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for duplication");
@@ -77,19 +96,20 @@ let abstract_step (edit : edit) (e : texpr) (env : record) :
              |> List.concat))
       in
       (e', s, env')
-  | Del i, Elem ({ children = Fixed children; _ } as elem) ->
+  | Del i, Elem ({ children = List children; _ } as elem) ->
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for deletion");
       let var = fresh_var env in
       let child = List.nth children i in
-      let vars = free_vars_texpr child in
+      let vars = free_vars child in
       let children' =
         List.mapi
-          (fun j c -> if j = i then [ OMap { var; body = child } ] else [ c ])
+          (fun j c ->
+            if j = i then [ OptionMap { opt = var; body = child } ] else [ c ])
           children
         |> List.concat
       in
-      let e' = Elem { elem with children = Fixed children' } in
+      let e' = Elem { elem with children = List children' } in
       let s env =
         let child_env, new_env =
           List.partition (fun (v, _) -> List.mem v vars) env
@@ -101,7 +121,7 @@ let abstract_step (edit : edit) (e : texpr) (env : record) :
         record_update new_env' var Null
       in
       (e', s, env')
-  | Del i, Elem { children = LMap { var; _ }; _ } ->
+  | Del i, Elem { children = ListMap { lst = var; _ }; _ } ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for deletion");
@@ -109,30 +129,29 @@ let abstract_step (edit : edit) (e : texpr) (env : record) :
         record_update env var (List (List.filteri (fun j _ -> j <> i) lst))
       in
       (e, Fun.id, env')
-  | Insert (i, new_tree), Elem ({ children = Fixed children; _ } as elem) ->
+  | Insert (i, new_tree), Elem ({ children = List children; _ } as elem) ->
       if i > List.length children then
         raise (Invalid_argument "Index out of bounds for insertion");
-      let new_texpr = texpr_of_tree new_tree in
+      let new_texpr = expr_of_tree new_tree in
       let var = fresh_var env in
       let children' =
         if i = List.length children then
-          children @ [ OMap { var; body = new_texpr } ]
+          children @ [ OptionMap { opt = var; body = new_texpr } ]
         else
           List.mapi
             (fun j c ->
-              if j = i then [ OMap { var; body = new_texpr }; c ] else [ c ])
+              if j = i then [ OptionMap { opt = var; body = new_texpr }; c ]
+              else [ c ])
             children
           |> List.concat
       in
-      let e' = Elem { elem with children = Fixed children' } in
+      let e' = Elem { elem with children = List children' } in
       let s env = record_update env var Null in
       let env' = record_update env var (Record []) in
       (e', s, env')
-  | Insert _, Elem { children = LMap _; _ } ->
-      raise (Not_supported "Insert not supported for LMap children")
   | SetAttr (key, attr), Elem ({ attrs; _ } as elem) -> (
       match List.assoc_opt key attrs with
-      | Some (AttrConst (Var var)) ->
+      | Some (Access var) ->
           let e' = e in
           let s = Fun.id in
           let env' =
@@ -140,11 +159,9 @@ let abstract_step (edit : edit) (e : texpr) (env : record) :
               (match attr with Some c -> Const c | None -> Null)
           in
           (e', s, env')
-      | Some (AttrConst (Const v)) ->
+      | Some (Const v) ->
           let var = fresh_var env in
-          let attrs' =
-            (key, AttrConst (Var var)) :: List.remove_assoc key attrs
-          in
+          let attrs' = (key, Access var) :: List.remove_assoc key attrs in
           let e' = Elem { elem with attrs = attrs' } in
           let s env = record_update env var (Const v) in
           let env' =
@@ -152,11 +169,11 @@ let abstract_step (edit : edit) (e : texpr) (env : record) :
               (match attr with Some c -> Const c | None -> Null)
           in
           (e', s, env')
-      | Some (AttrFunc _) ->
-          raise (Not_supported "Setting function attribute not supported")
+      | Some _ ->
+          raise (Not_supported "Setting non-const attribute not supported")
       | None ->
           let var = fresh_var env in
-          let attrs' = (key, AttrConst (Var var)) :: attrs in
+          let attrs' = (key, Access var) :: attrs in
           let e' = Elem { elem with attrs = attrs' } in
           let s env = record_update env var Null in
           let env' =
@@ -164,21 +181,32 @@ let abstract_step (edit : edit) (e : texpr) (env : record) :
               (match attr with Some c -> Const c | None -> Null)
           in
           (e', s, env'))
+  | _, _ -> raise (Not_supported "Unsupported edit type or expression")
+
+let record_of_value (v : value) : record =
+  match v with
+  | Record r -> r
+  | _ -> raise (Type_error "Expected Record for record_of_value")
+
+let s_value (s : record -> record) (v : value) : value =
+  match v with
+  | Record r -> Record (s r)
+  | _ -> raise (Type_error "Expected Record for apply_substitution_value")
 
 (* abstract_step_traverse path edit e env0 = (e', s, env') =>
    (forall env ~ env0, teval e' (s env) = teval e env) AND
    teval e' env' = apply_traverse path edit (teval e' (s env0)) *)
-let rec abstract_step_traverse (path : path) (edit : edit) (e : texpr)
-    (env : record) : texpr * (record -> record) * record =
+let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
+    (env : record) : expr * (record -> record) * record =
   match (e, path) with
-  | OMap { var; body }, _ ->
+  | OptionMap { opt = var; body }, _ ->
       (* traverse into OMap *)
       (* the path is editable only if it is not null *)
       let inner_env = List.assoc var env |> record_of_value in
       let body', inner_s, inner_env' =
         abstract_step_traverse path edit body inner_env
       in
-      let e' = OMap { var; body = body' } in
+      let e' = OptionMap { opt = var; body = body' } in
       let s env =
         (* other pathes with same type might be null *)
         match List.assoc var env with
@@ -193,8 +221,7 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : texpr)
   | _, [] ->
       (* no more path, apply the edit directly *)
       abstract_step edit e env
-  | Val _, _ -> raise (Invalid_argument "Cannot traverse into Val")
-  | Elem ({ children = Fixed children; _ } as elem), i :: rest ->
+  | Elem ({ children = List children; _ } as elem), i :: rest ->
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for path");
       let child_e = List.nth children i in
@@ -202,32 +229,36 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : texpr)
       let children' =
         List.mapi (fun j c -> if j = i then child_e' else c) children
       in
-      let e' = Elem { elem with children = Fixed children' } in
+      let e' = Elem { elem with children = List children' } in
       (e', s, env')
-  | Elem ({ children = LMap { var; body }; _ } as elem), i :: rest ->
+  | Elem ({ children = ListMap { lst = var; body }; _ } as elem), i :: rest ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for path");
-      let child_env = List.nth lst i in
+      let child_env = List.nth lst i |> record_of_value in
       let body', child_s, child_env' =
         abstract_step_traverse rest edit body child_env
       in
-      let e' = Elem { elem with children = LMap { var; body = body' } } in
+      let e' =
+        Elem { elem with children = ListMap { lst = var; body = body' } }
+      in
       let s env =
         let lst = List.assoc var env |> list_of_value in
-        record_update env var (List (List.map child_s lst))
+        record_update env var (List (List.map (s_value child_s) lst))
       in
       let env' =
         record_update env var
           (List
              (List.mapi
-                (fun j c -> if j = i then child_env' else child_s c)
+                (fun j c ->
+                  if j = i then Record child_env' else s_value child_s c)
                 lst))
       in
       (e', s, env')
+  | _ -> raise (Not_supported "Unsupported expression or path for abstraction")
 
 let init_abstraction (init : tree) : abstraction =
-  let sketch = texpr_of_tree init in
+  let sketch = expr_of_tree init in
   { sketch; init = []; steps = [] }
 
 let add_step ({ sketch; init; steps } : abstraction)

@@ -65,12 +65,12 @@ let parse_tree_testcases =
 
 let test_init_abstraction (name, input, expected) =
   test_case name `Quick (fun () ->
-      let result = Abstract.texpr_of_tree input in
-      check (testable Texpr.pp_texpr Texpr.equal_texpr) name expected result)
+      let result = Abstract.expr_of_tree input in
+      check (testable Texpr.pp_expr Texpr.equal_expr) name expected result)
 
 let init_abstraction_testcases =
   [
-    ("text", tree_const (String "foo"), Texpr.Val (Const (String "foo")));
+    ("text", tree_const (String "foo"), (Const (String "foo") : Texpr.expr));
     ( "counter example",
       tree_elem "div"
         [ ("className", AttrConst (String "flex flex-col items-center")) ]
@@ -87,42 +87,32 @@ let init_abstraction_testcases =
             ]
             [ tree_const (String "Increment") ];
         ],
-      Texpr.Elem
+      Elem
         {
           name = "div";
-          attrs =
-            [
-              ( "className",
-                AttrConst (Const (String "flex flex-col items-center")) );
-            ];
+          attrs = [ ("className", Const (String "flex flex-col items-center")) ];
           children =
-            Texpr.Fixed
+            List
               [
-                Texpr.Elem
+                Elem
                   {
                     name = "span";
                     attrs =
-                      [
-                        ( "className",
-                          AttrConst (Const (String "font-semibold text-lg")) );
-                      ];
-                    children = Texpr.Fixed [ Texpr.Val (Const (String "0")) ];
+                      [ ("className", Const (String "font-semibold text-lg")) ];
+                    children = List [ Const (String "0") ];
                   };
-                Texpr.Elem
+                Elem
                   {
                     name = "button";
                     attrs =
                       [
                         ( "className",
-                          AttrConst
-                            (Const
-                               (String
-                                  "bg-stone-500 text-white px-2 py-1 rounded"))
+                          Const
+                            (String "bg-stone-500 text-white px-2 py-1 rounded")
                         );
-                        ("onClick", AttrFunc 1);
+                        ("onClick", HandlerHole 1);
                       ];
-                    children =
-                      Texpr.Fixed [ Texpr.Val (Const (String "Increment")) ];
+                    children = List [ Const (String "Increment") ];
                   };
               ];
         } );
@@ -174,70 +164,60 @@ let abstract_demo_testcases =
       Abstract.
         {
           sketch =
-            Texpr.Elem
+            Elem
               {
                 name = "div";
                 attrs =
-                  [
-                    ( "className",
-                      AttrConst (Const (String "flex flex-col items-center")) );
-                  ];
+                  [ ("className", Const (String "flex flex-col items-center")) ];
                 children =
-                  Texpr.Fixed
+                  List
                     [
-                      Texpr.Elem
+                      Elem
                         {
                           name = "span";
                           attrs =
                             [
                               ( "className",
-                                AttrConst
-                                  (Const (String "font-semibold text-lg")) );
+                                Const (String "font-semibold text-lg") );
                             ];
-                          children = Texpr.Fixed [ Texpr.Val (Var 0) ];
+                          children = List [ Access 1 ];
                         };
-                      Texpr.Elem
+                      Elem
                         {
                           name = "button";
                           attrs =
                             [
                               ( "className",
-                                AttrConst
-                                  (Const
-                                     (String
-                                        "bg-stone-500 text-white px-2 py-1 \
-                                         rounded")) );
-                              ("onClick", AttrFunc 1);
+                                Const
+                                  (String
+                                     "bg-stone-500 text-white px-2 py-1 rounded")
+                              );
+                              ("onClick", HandlerHole 1);
                             ];
-                          children =
-                            Texpr.Fixed
-                              [ Texpr.Val (Const (String "Increment")) ];
+                          children = List [ Const (String "Increment") ];
                         };
-                      Texpr.Elem
+                      Elem
                         {
                           name = "button";
                           attrs =
                             [
                               ( "className",
-                                AttrConst
-                                  (Const
-                                     (String
-                                        "bg-stone-500 text-white px-2 py-1 \
-                                         rounded")) );
-                              ("onClick", AttrFunc 2);
+                                Const
+                                  (String
+                                     "bg-stone-500 text-white px-2 py-1 rounded")
+                              );
+                              ("onClick", HandlerHole 2);
                             ];
-                          children =
-                            Texpr.Fixed
-                              [ Texpr.Val (Const (String "Decrement")) ];
+                          children = List [ Const (String "Decrement") ];
                         };
                     ];
               };
-          init = [ (0, Texpr.Const (String "0")) ];
+          init = [ (1, Const (String "0")) ];
           steps =
             [
-              ((1, Demo.Click, None), [ (0, Texpr.Const (String "1")) ]);
-              ((1, Demo.Click, None), [ (0, Texpr.Const (String "2")) ]);
-              ((2, Demo.Click, None), [ (0, Texpr.Const (String "1")) ]);
+              ((1, Demo.Click, None), [ (1, Const (String "1")) ]);
+              ((1, Demo.Click, None), [ (1, Const (String "2")) ]);
+              ((2, Demo.Click, None), [ (1, Const (String "1")) ]);
             ];
         } );
   ]

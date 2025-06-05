@@ -238,11 +238,22 @@ let abstract_demo_testcases =
                 tree_elem "button"
                   [ ("onClick", AttrFunc (Label 2)) ]
                   [ tree_const (String "Add Task") ];
-                tree_elem "ul" []
-                  [ tree_elem "li" [] [ tree_const (String "Task 1") ] ];
+                tree_elem "ul" [] [];
               ];
           steps =
             [
+              ( (Label 1, Demo.Input, Some "Task 1"),
+                [
+                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "Task 1")));
+                ] );
+              ( (Label 2, Demo.Click, None),
+                [
+                  ( [ Index 2 ],
+                    Demo.Insert
+                      ( Index 0,
+                        tree_elem "li" [] [ tree_const (String "Task 1") ] ) );
+                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
+                ] );
               ( (Label 1, Demo.Input, Some "New Task"),
                 [
                   ([ Index 0 ], Demo.SetAttr ("value", Some (String "New Task")));
@@ -301,13 +312,16 @@ let abstract_demo_testcases =
                         };
                     ];
               };
-          init =
-            [
-              (2, List [ Record [ (1, Const (String "Task 1")) ] ]);
-              (1, Const (String ""));
-            ];
+          init = [ (2, List []); (1, Const (String "")) ];
           steps =
             [
+              ( (Label 1, Demo.Input, Some "Task 1"),
+                [ (2, List []); (1, Const (String "Task 1")) ] );
+              ( (Label 2, Demo.Click, None),
+                [
+                  (2, List [ Record [ (1, Const (String "Task 1")) ] ]);
+                  (1, Const (String ""));
+                ] );
               ( (Label 1, Demo.Input, Some "New Task"),
                 [
                   (2, List [ Record [ (1, Const (String "Task 1")) ] ]);

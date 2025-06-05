@@ -64,6 +64,26 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
       let s env = record_update env var (Const old_c) in
       let env' = record_update env var (Const new_c) in
       (e', s, env')
+  | ( Dup (Index 0),
+      Elem ({ children = List [ OptionMap { opt = var; body } ]; _ } as elem) )
+    ->
+      let e' = Elem { elem with children = ListMap { lst = var; body } } in
+      let s env =
+        (* convert option to list *)
+        let r = List.assoc var env in
+        let l =
+          match r with
+          | Record _ -> [ r ]
+          | Null -> []
+          | _ -> raise (Type_error "Expected Record for Dup")
+        in
+        record_update env var (List l)
+      in
+      let env' =
+        let r = List.assoc var env in
+        record_update env var (List [ r; r ])
+      in
+      (e', s, env')
   | Dup (Index 0), Elem ({ children = List [ child ]; _ } as elem) ->
       let var = fresh_var env in
       let vars = free_vars child in

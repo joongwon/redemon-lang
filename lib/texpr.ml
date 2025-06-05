@@ -1,6 +1,6 @@
 open Tree.Syntax
 
-type var = int [@@deriving eq, show]
+type var = Var of int [@@unboxed] [@@deriving eq, show]
 
 (* an expression accepting single record (namely, 'root') as an environment *)
 type expr =

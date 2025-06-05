@@ -18,7 +18,7 @@ let prop_prefix = "x"
 let rec js_of_expr ~(prefix : string) (e : expr) : string =
   match e with
   | Const c -> string_of_const c
-  | Access v -> Printf.sprintf "%s%d" prefix v
+  | Access (Var v) -> Printf.sprintf "%s%d" prefix v
   | Elem { name; attrs; children } ->
       let attrs_str =
         String.concat " "
@@ -34,14 +34,14 @@ let rec js_of_expr ~(prefix : string) (e : expr) : string =
       "{"
       ^ String.concat ", "
           (List.map
-             (fun (v, e') ->
+             (fun (Var v, e') ->
                Printf.sprintf "%s%d: %s" prop_prefix v (js_of_expr ~prefix e'))
              r)
       ^ "}"
-  | OptionMap { opt; body } ->
+  | OptionMap { opt = Var opt; body } ->
       let opt = Printf.sprintf "%s%d" prefix opt in
       Printf.sprintf "(%s ? %s : null)" opt (js_of_expr ~prefix:opt body)
-  | ListMap { lst; body } ->
+  | ListMap { lst = Var lst; body } ->
       let lst = Printf.sprintf "%s%d" prefix lst in
       let arg = "item" in
       (* could be any name *)
@@ -86,7 +86,7 @@ let rec js_of_value (v : value) : string =
       "{"
       ^ String.concat ", "
           (List.map
-             (fun (v, e) -> Printf.sprintf "x%d: %s" v (js_of_value e))
+             (fun (Var v, e) -> Printf.sprintf "x%d: %s" v (js_of_value e))
              r)
       ^ "}"
 
@@ -94,7 +94,7 @@ let js_of_prog (p : prog) : string =
   "function App() {\n"
   ^ String.concat ""
       (List.map
-         (fun (v, value) ->
+         (fun (Var v, value) ->
            Printf.sprintf "  const [s%d, setS%d] = useState(%s);\n" v v
              (js_of_value value))
          p.states)
@@ -105,7 +105,7 @@ let js_of_prog (p : prog) : string =
            let body =
              String.concat "\n"
                (List.map
-                  (fun (v, e) ->
+                  (fun (Var v, e) ->
                     Printf.sprintf "    setS%d(%s);\n" v
                       (js_of_expr ~prefix:"s" e))
                   body)

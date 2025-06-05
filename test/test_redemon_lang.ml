@@ -183,7 +183,7 @@ let abstract_demo_testcases =
                               ( "className",
                                 Const (String "font-semibold text-lg") );
                             ];
-                          children = List [ Access 1 ];
+                          children = List [ Access (Var 1) ];
                         };
                       Elem
                         {
@@ -215,12 +215,12 @@ let abstract_demo_testcases =
                         };
                     ];
               };
-          init = [ (1, Const (String "0")) ];
+          init = [ (Var 1, Const (String "0")) ];
           steps =
             [
-              ((Label 1, Demo.Click, None), [ (1, Const (String "1")) ]);
-              ((Label 1, Demo.Click, None), [ (1, Const (String "2")) ]);
-              ((Label 2, Demo.Click, None), [ (1, Const (String "1")) ]);
+              ((Label 1, Demo.Click, None), [ (Var 1, Const (String "1")) ]);
+              ((Label 1, Demo.Click, None), [ (Var 1, Const (String "2")) ]);
+              ((Label 2, Demo.Click, None), [ (Var 1, Const (String "1")) ]);
             ];
         } );
     ( "todo list demo",
@@ -282,7 +282,7 @@ let abstract_demo_testcases =
                           name = "input";
                           attrs =
                             [
-                              ("value", Access 1);
+                              ("value", Access (Var 1));
                               ("onChange", HandlerHole (Label 1));
                             ];
                           children = List [];
@@ -300,41 +300,41 @@ let abstract_demo_testcases =
                           children =
                             ListMap
                               {
-                                lst = 2;
+                                lst = Var 2;
                                 body =
                                   Elem
                                     {
                                       name = "li";
                                       attrs = [];
-                                      children = List [ Access 1 ];
+                                      children = List [ Access (Var 1) ];
                                     };
                               };
                         };
                     ];
               };
-          init = [ (2, List []); (1, Const (String "")) ];
+          init = [ (Var 2, List []); (Var 1, Const (String "")) ];
           steps =
             [
               ( (Label 1, Demo.Input, Some "Task 1"),
-                [ (2, List []); (1, Const (String "Task 1")) ] );
+                [ (Var 2, List []); (Var 1, Const (String "Task 1")) ] );
               ( (Label 2, Demo.Click, None),
                 [
-                  (2, List [ Record [ (1, Const (String "Task 1")) ] ]);
-                  (1, Const (String ""));
+                  (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
+                  (Var 1, Const (String ""));
                 ] );
               ( (Label 1, Demo.Input, Some "New Task"),
                 [
-                  (2, List [ Record [ (1, Const (String "Task 1")) ] ]);
-                  (1, Const (String "New Task"));
+                  (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
+                  (Var 1, Const (String "New Task"));
                 ] );
               ( (Label 2, Demo.Click, None),
                 [
-                  (1, Const (String ""));
-                  ( 2,
+                  (Var 1, Const (String ""));
+                  ( Var 2,
                     List
                       [
-                        Record [ (1, Const (String "Task 1")) ];
-                        Record [ (1, Const (String "New Task")) ];
+                        Record [ (Var 1, Const (String "Task 1")) ];
+                        Record [ (Var 1, Const (String "New Task")) ];
                       ] );
                 ] );
             ];

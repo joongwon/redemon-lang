@@ -30,8 +30,8 @@ let record_update (r : record) (var : var) (v : value) : record =
   (var, v) :: List.remove_assoc var r
 
 let fresh_var (r : record) : var =
-  let keys = List.map fst r in
-  1 + List.fold_left max 0 keys
+  let keys = List.map (fun (Var k, _) -> k) r in
+  Var (1 + List.fold_left max 0 keys)
 
 let rec free_vars (e : expr) : var list =
   match e with

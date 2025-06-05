@@ -1,6 +1,7 @@
 open Tree.Syntax
 
 type index = Index of int [@@unboxed]
+
 let int_of_index (Index i) = i
 
 type path = index list

@@ -129,7 +129,8 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update env var (List (List.filteri (fun j _ -> j <> i) lst))
       in
       (e, Fun.id, env')
-  | Insert (Index i, new_tree), Elem ({ children = List children; _ } as elem) ->
+  | Insert (Index i, new_tree), Elem ({ children = List children; _ } as elem)
+    ->
       if i > List.length children then
         raise (Invalid_argument "Index out of bounds for insertion");
       let new_texpr = expr_of_tree new_tree in
@@ -231,7 +232,8 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
       in
       let e' = Elem { elem with children = List children' } in
       (e', s, env')
-  | Elem ({ children = ListMap { lst = var; body }; _ } as elem), Index i :: rest ->
+  | ( Elem ({ children = ListMap { lst = var; body }; _ } as elem),
+      Index i :: rest ) ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for path");

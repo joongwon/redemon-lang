@@ -1,6 +1,6 @@
 open Tree.Syntax
 
-type index = int
+type index = Index of int [@@unboxed]
 type path = index list
 
 type edit =

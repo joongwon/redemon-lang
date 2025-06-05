@@ -28,7 +28,7 @@ let parse_tree_testcases =
         [
           ("a", AttrConst (String "b"));
           ("c", AttrConst (Int 1));
-          ("f", AttrFunc 1);
+          ("f", AttrFunc (Label 1));
         ]
         [] );
     ( "counter example",
@@ -54,7 +54,7 @@ let parse_tree_testcases =
               ( "className",
                 AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
               );
-              ("onClick", AttrFunc 1);
+              ("onClick", AttrFunc (Label 1));
             ]
             [ tree_const (String "Increment") ];
         ] );
@@ -83,7 +83,7 @@ let init_abstraction_testcases =
               ( "className",
                 AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
               );
-              ("onClick", AttrFunc 1);
+              ("onClick", AttrFunc (Label 1));
             ]
             [ tree_const (String "Increment") ];
         ],
@@ -110,7 +110,7 @@ let init_abstraction_testcases =
                           Const
                             (String "bg-stone-500 text-white px-2 py-1 rounded")
                         );
-                        ("onClick", HandlerHole 1);
+                        ("onClick", HandlerHole (Label 1));
                       ];
                     children = List [ Const (String "Increment") ];
                   };
@@ -142,7 +142,7 @@ let abstract_demo_testcases =
                     ( "className",
                       AttrConst
                         (String "bg-stone-500 text-white px-2 py-1 rounded") );
-                    ("onClick", AttrFunc 1);
+                    ("onClick", AttrFunc (Label 1));
                   ]
                   [ tree_const (String "Increment") ];
                 tree_elem "button"
@@ -150,15 +150,15 @@ let abstract_demo_testcases =
                     ( "className",
                       AttrConst
                         (String "bg-stone-500 text-white px-2 py-1 rounded") );
-                    ("onClick", AttrFunc 2);
+                    ("onClick", AttrFunc (Label 2));
                   ]
                   [ tree_const (String "Decrement") ];
               ];
           steps =
             [
-              ((1, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
-              ((1, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "2")) ]);
-              ((2, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
+              ((Label 1, Demo.Click, None), [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ]);
+              ((Label 1, Demo.Click, None), [ ([ Index 0; Index 0 ], Demo.Replace (String "2")) ]);
+              ((Label 2, Demo.Click, None), [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ]);
             ];
         },
       Abstract.
@@ -192,7 +192,7 @@ let abstract_demo_testcases =
                                   (String
                                      "bg-stone-500 text-white px-2 py-1 rounded")
                               );
-                              ("onClick", HandlerHole 1);
+                              ("onClick", HandlerHole (Label 1));
                             ];
                           children = List [ Const (String "Increment") ];
                         };
@@ -206,7 +206,7 @@ let abstract_demo_testcases =
                                   (String
                                      "bg-stone-500 text-white px-2 py-1 rounded")
                               );
-                              ("onClick", HandlerHole 2);
+                              ("onClick", HandlerHole (Label 2));
                             ];
                           children = List [ Const (String "Decrement") ];
                         };
@@ -215,9 +215,9 @@ let abstract_demo_testcases =
           init = [ (1, Const (String "0")) ];
           steps =
             [
-              ((1, Demo.Click, None), [ (1, Const (String "1")) ]);
-              ((1, Demo.Click, None), [ (1, Const (String "2")) ]);
-              ((2, Demo.Click, None), [ (1, Const (String "1")) ]);
+              ((Label 1, Demo.Click, None), [ (1, Const (String "1")) ]);
+              ((Label 1, Demo.Click, None), [ (1, Const (String "2")) ]);
+              ((Label 2, Demo.Click, None), [ (1, Const (String "1")) ]);
             ];
         } );
   ]

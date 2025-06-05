@@ -28,7 +28,7 @@ let rec js_of_expr ~(prefix : string) (e : expr) : string =
       in
       let children_str = jsx_of_expr ~prefix children in
       Printf.sprintf "<%s %s>%s</%s>" name attrs_str children_str name
-  | HandlerHole l -> Printf.sprintf "$%d" l
+  | HandlerHole (Label l) -> Printf.sprintf "$%d" l
   | List es -> "[" ^ String.concat ", " (List.map (js_of_expr ~prefix) es) ^ "]"
   | Record r ->
       "{"
@@ -60,7 +60,7 @@ let js_of_attr_value (v : attr_value) : string =
   match v with
   | AttrConst (String s) -> Printf.sprintf "\"%s\"" s
   | AttrConst (Int i) -> Printf.sprintf "{%d}" i
-  | AttrFunc l -> Printf.sprintf "$%d" l
+  | AttrFunc (Label l) -> Printf.sprintf "$%d" l
 
 let rec js_of_tree (t : tree) : string =
   match t with
@@ -79,7 +79,7 @@ let rec js_of_value (v : value) : string =
   match v with
   | Tree t -> js_of_tree t
   | Const c -> string_of_const c
-  | HandlerHole l -> Printf.sprintf "$%d" l
+  | HandlerHole (Label l) -> Printf.sprintf "$%d" l
   | Null -> "null"
   | List vs -> "[" ^ String.concat ", " (List.map js_of_value vs) ^ "]"
   | Record r ->
@@ -101,7 +101,7 @@ let js_of_prog (p : prog) : string =
   ^ Printf.sprintf "  const data = %s;\n" (js_of_expr ~prefix:"s" p.data)
   ^ String.concat ""
       (List.map
-         (fun (label, event, body) ->
+         (fun (Label label, event, body) ->
            let body =
              String.concat "\n"
                (List.map

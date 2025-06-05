@@ -32,5 +32,5 @@ and props tagname acc = parse
   | (word as name) "={true}" { props tagname ((name, AttrConst (Bool true)) :: acc) lexbuf }
   | (word as name) "={false}" { props tagname ((name, AttrConst (Bool false)) :: acc) lexbuf }
   *)
-  | (word as name) "={$" (['0'-'9']+ as label) "}" { props tagname ((name, AttrFunc (int_of_string label)) :: acc) lexbuf }
+  | (word as name) "={$" (['0'-'9']+ as label) "}" { props tagname ((name, AttrFunc (Label (int_of_string label))) :: acc) lexbuf }
   | _ { raise (LexingError (Printf.sprintf "Unexpected character in attribute: %c" (Lexing.lexeme_char lexbuf 0), Lexing.lexeme_start_p lexbuf)) }

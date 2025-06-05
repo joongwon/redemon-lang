@@ -1,12 +1,13 @@
 open Tree.Syntax
 
-type path = int list
+type index = int
+type path = index list
 
 type edit =
-  | Dup of int
-  | Del of int
+  | Dup of index
+  | Del of index
   | Replace of const
-  | Insert of int * tree
+  | Insert of index * tree
   | SetAttr of string * const option
 
 type event = Click | Input

@@ -125,10 +125,7 @@ let test_abstract_demo (name, input, expected) =
         (testable Abstract.pp_abstraction Abstract.equal_abstraction)
         name expected result)
 
-let abstract_demo_testcases =
-  [
-    ( "counter demo",
-      Demo.
+let counter_demo = Demo.
         {
           init =
             tree_elem "div"
@@ -172,7 +169,12 @@ let abstract_demo_testcases =
                 edits = [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ];
               };
             ];
-        },
+        }
+
+let abstract_demo_testcases =
+  [
+    ( "counter demo",
+      counter_demo,
       Abstract.
         {
           sketch =
@@ -387,6 +389,35 @@ let abstract_demo_testcases =
         } );
   ]
 
+let pairs_to_assoc_list pairs =
+  List.fold_left (fun acc (k, v) ->
+    match List.assoc_opt k acc with
+    | Some existing_v -> (k, existing_v @ [v]) :: List.remove_assoc k acc
+    | None -> (k, [v]) :: acc) [] pairs
+
+let test_synthesis () =
+  let abs = Abstract.abstract_demo counter_demo in
+  let result = Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules |>
+    List.map (fun Synthesis.{ state; label; action_type; func } ->
+      ((label, action_type), (state, func))) 
+    |> pairs_to_assoc_list in
+  let prog = Codegen.{
+    view = abs.sketch;
+    data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
+    handlers = result;
+    states = abs.init;
+  } in
+  check (testable Codegen.pp_prog Codegen.equal_prog) "Synthesis Test" 
+    prog
+    {
+      view = abs.sketch;
+      data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
+      handlers =
+        [
+        ];
+      states = abs.init;
+    }
+
 let () =
   run "Redemon Lang Tests"
     [
@@ -394,4 +425,5 @@ let () =
       ( "Init Abstraction",
         List.map test_init_abstraction init_abstraction_testcases );
       ("Abstract Demo", List.map test_abstract_demo abstract_demo_testcases);
+      ("Synthesis", [test_case "Synthesize Counter Demo" `Quick test_synthesis]);
     ]

@@ -5,9 +5,10 @@ open Demo
 type prog = {
   view : expr;
   data : expr;
-  handlers : (label * event * (var * expr) list) list;
+  handlers : ((label * action_type) * (var * expr) list) list;
   states : (var * value) list;
 }
+[@@deriving show, eq]
 
 (* translation of expressions to js syntax *)
 
@@ -17,7 +18,8 @@ let prop_prefix = "x"
 (* prefix: prefix appended before Access, for example: prefix="data.x", var=0 -> "data.x0" *)
 let rec js_of_expr ~(prefix : string) (e : expr) : string =
   match e with
-  | Const c -> string_of_const c
+  | Const (String s) -> Printf.sprintf "\"%s\"" s
+  | Const (Int i) -> Printf.sprintf "%d" i
   | Access (Var v) -> Printf.sprintf "%s%d" prefix v
   | Elem { name; attrs; children } ->
       let attrs_str =
@@ -48,6 +50,9 @@ let rec js_of_expr ~(prefix : string) (e : expr) : string =
       let inner_prefix = Printf.sprintf "%s.%s" arg prop_prefix in
       Printf.sprintf "%s.map(%s => %s)" lst arg
         (js_of_expr ~prefix:inner_prefix body)
+  | Fun { func; args } ->
+      let args = List.map (js_of_expr ~prefix) args in
+      Synthesis.func_to_js func args
 
 and jsx_of_expr ~(prefix : string) (e : expr) : string =
   match e with
@@ -101,7 +106,7 @@ let js_of_prog (p : prog) : string =
   ^ Printf.sprintf "  const data = %s;\n" (js_of_expr ~prefix:"s" p.data)
   ^ String.concat ""
       (List.map
-         (fun (Label label, event, body) ->
+         (fun ((Label label, event), body) ->
            let body =
              String.concat "\n"
                (List.map

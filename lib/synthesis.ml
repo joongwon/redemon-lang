@@ -343,7 +343,7 @@ type state = var
 type synthesized_rule = {
   state : state;
   label : label;
-  event : event;
+  action_type : action_type;
   func : expr; (* Fun of ... *)
 }
 
@@ -360,13 +360,13 @@ let rec value_to_expr (v : value) : expr =
 let translate_synthesized_rule (var_id : var)
     (p_action : parameterizable_action) (fname : string) (args : value list) :
     synthesized_rule =
-  let label, event =
+  let label, action_type =
     match p_action with P_Click l -> (l, Click) | P_Input l -> (l, Input)
   in
   let args_expr = List.map value_to_expr args in
   let args = [ Access var_id ] @ args_expr in
   let func_expr = Fun { func = fname; args } in
-  { state = var_id; label; event; func = func_expr }
+  { state = var_id; label; action_type; func = func_expr }
 
 let translate_synthesized_rules
     (synthesized_rules :

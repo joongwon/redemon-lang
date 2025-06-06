@@ -14,16 +14,9 @@ exception NotFound of string
 exception InvalidOperation of string
 exception SynthesisConflict of string
 exception SynthesisFailed of string
+exception ParameterLengthError of string
 
-let rec equal_value (v1 : value) (v2 : value) : bool = v1 = v2
-
-let rec show_record (r : record) : string =
-  Printf.sprintf "{%s}"
-    (String.concat "; "
-       (List.map
-          (fun (v_id, v) -> Printf.sprintf "%d: %s" v_id (show_value v))
-          r))
-
+(* Fuction candidate *)
 let map (l : value) (f : value -> value) : value =
   match l with
   | List l -> List (List.map f l)
@@ -114,17 +107,20 @@ let concat_str (v1 : value) (v2 : value) : value =
   | Const (String s1), Const (String s2) -> Const (String (s1 ^ s2))
   | _ -> raise (TypeError "ConcatStr: Expected two string constants")
 
+(* Fuction candidate  end *)
 let lookup_val (v_id : var) (r : record) : value =
   try List.assoc v_id r
   with Not_found ->
-    raise (NotFound (Printf.sprintf "Variable %d not found in record" v_id))
+    raise
+      (NotFound
+         (Printf.sprintf "Variable %s not found in record" (show_var v_id)))
 
 type parameterizable_action = P_Click of label | P_Input of label
 
 let show_parameterizable_action (p_act : parameterizable_action) : string =
   match p_act with
-  | P_Click l -> Printf.sprintf "Click(%d)" l
-  | P_Input l -> Printf.sprintf "Input(%d)" l
+  | P_Click l -> Printf.sprintf "Click(%s)" (show_label l)
+  | P_Input l -> Printf.sprintf "Input(%s)" (show_label l)
 
 let to_param_action (act : action) : parameterizable_action =
   match act with l, Click, _ -> P_Click l | l, Input, _ -> P_Input l
@@ -339,19 +335,171 @@ let synthesize (abstraction_data : abstraction) :
 
   synthesized_rules
 
+type state = var
+
+(* translate synthesie_rule to expr *)
+type synthesized_rule = {
+  state : state;
+  label : label;
+  event : event;
+  func : expr; (* Fun of ... *)
+}
+
+let rec value_to_expr (v : value) : expr =
+  match v with
+  | Tree t -> failwith "Tree cannot be converted to expr directly"
+  | Const c -> Const c
+  | Record r ->
+      Record (List.map (fun (v_id, v_val) -> (v_id, value_to_expr v_val)) r)
+  | List l -> List (List.map value_to_expr l)
+  | Null -> failwith "Null cannot be converted to expr"
+  | HandlerHole l -> HandlerHole l
+
+let translate_synthesized_rule (var_id : var)
+    (p_action : parameterizable_action) (fname : string) (args : value list) :
+    synthesized_rule =
+  let label, event =
+    match p_action with P_Click l -> (l, Click) | P_Input l -> (l, Input)
+  in
+  let args_expr = List.map value_to_expr args in
+  let args = [ Access var_id ] @ args_expr in
+  let func_expr = Fun { func = fname; args } in
+  { state = var_id; label; event; func = func_expr }
+
+let translate_synthesized_rules
+    (synthesized_rules :
+      (var * parameterizable_action, synthesized_function) Hashtbl.t) :
+    synthesized_rule list =
+  Hashtbl.fold
+    (fun (var_id, p_action) (fname, args) acc ->
+      let rule = translate_synthesized_rule var_id p_action fname args in
+      rule :: acc)
+    synthesized_rules []
+
+(* JavaScript로 변환 *)
+
+let func_to_js (fname : string) (expr_l : string list) : string =
+  match fname with
+  | "map" -> (
+      match expr_l with
+      | [ l_expr; f_expr ] -> Printf.sprintf "(%s).map(%s)" l_expr f_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "Map: Expected 2 arguments (list_expr, function_expr)"))
+  | "concat_list" -> (
+      match expr_l with
+      | [ l1_expr; l2_expr ] -> Printf.sprintf "[...%s, ...%s]" l1_expr l2_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "ConcatList: Expected 2 arguments (list1_expr, list2_expr)"))
+  | "length" -> (
+      match expr_l with
+      | [ l_expr ] -> Printf.sprintf "(%s).length" l_expr
+      | _ ->
+          raise (ParameterLengthError "Length: Expected 1 argument (list_expr)")
+      )
+  | "filter" -> (
+      match expr_l with
+      | [ l_expr; f_expr ] -> Printf.sprintf "(%s).filter(%s)" l_expr f_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "Filter: Expected 2 arguments (list_expr, function_expr)"))
+  | "find" -> (
+      match expr_l with
+      | [ l_expr; f_expr ] -> Printf.sprintf "(%s).find(%s)" l_expr f_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "Find: Expected 2 arguments (list_expr, function_expr)"))
+  | "push" -> (
+      match expr_l with
+      | [ l_expr; item_expr ] -> Printf.sprintf "[%s, ...%s]" item_expr l_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "Push: Expected 2 arguments (list_expr, item_expr)"))
+  | "pop" -> (
+      match expr_l with
+      | [ l_expr ] -> Printf.sprintf "(%s).slice(1)" l_expr
+      | _ -> raise (ParameterLengthError "Pop: Expected 1 argument (list_expr)")
+      )
+  | "plus" -> (
+      match expr_l with
+      | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s + %s)" v1_expr v2_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "Plus: Expected 2 arguments (val1_expr, val2_expr)"))
+  | "minus" -> (
+      match expr_l with
+      | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s - %s)" v1_expr v2_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "Minus: Expected 2 arguments (val1_expr, val2_expr)"))
+  | "times" -> (
+      match expr_l with
+      | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s * %s)" v1_expr v2_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "Times: Expected 2 arguments (val1_expr, val2_expr)"))
+  | "divide" -> (
+      match expr_l with
+      | [ v1_expr; v2_expr ] -> Printf.sprintf "((%s / %s) | 0)" v1_expr v2_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "Divide: Expected 2 arguments (val1_expr, val2_expr)"))
+  | "change_string_to" -> (
+      match expr_l with
+      | [ _target_type_expr; new_s_expr ] -> new_s_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "ChangeStringTo: Expected 2 arguments (target_type_expr, \
+                new_string_expr)"))
+  | "set_to_const_string" -> (
+      match expr_l with
+      | [ _v_old_expr; new_s_const_expr ] -> new_s_const_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "SetToConstString: Expected 2 arguments (old_val_expr, \
+                new_string_const_expr)"))
+  | "change_string" -> (
+      match expr_l with
+      | [ _v1_expr; s_expr ] -> s_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "ChangeString: Expected 2 arguments (val1_expr, new_string_expr)")
+      )
+  | "concat_str" -> (
+      match expr_l with
+      | [ s1_expr; s2_expr ] -> Printf.sprintf "(%s + %s)" s1_expr s2_expr
+      | _ ->
+          raise
+            (ParameterLengthError
+               "ConcatStr: Expected 2 arguments (string1_expr, string2_expr)"))
+  | _ -> failwith ("Unknown function for JS translation: " ^ fname)
+
 let test () =
   let counter_abstraction =
     {
       sketch = expr_of_tree (Const (Int 0));
-      init = [ (1, Const (Int 0)) ];
+      init = [ (Var 1, Const (Int 0)) ];
       steps =
         [
-          ((1, Click, None), [ (1, Const (Int 1)) ]);
-          ((1, Click, None), [ (1, Const (Int 2)) ]);
-          ((1, Click, None), [ (1, Const (Int 3)) ]);
-          ((2, Click, None), [ (1, Const (Int 2)) ]);
-          ((2, Click, None), [ (1, Const (Int 1)) ]);
-          ((2, Click, None), [ (1, Const (Int 0)) ]);
+          ((Label 1, Click, None), [ (Var 1, Const (Int 1)) ]);
+          ((Label 1, Click, None), [ (Var 1, Const (Int 2)) ]);
+          ((Label 1, Click, None), [ (Var 1, Const (Int 3)) ]);
+          ((Label 2, Click, None), [ (Var 1, Const (Int 2)) ]);
+          ((Label 2, Click, None), [ (Var 1, Const (Int 1)) ]);
+          ((Label 2, Click, None), [ (Var 1, Const (Int 0)) ]);
         ]
         (* 
        init: {1:0}
@@ -377,12 +525,13 @@ let test () =
   let string_input_abstraction =
     {
       sketch = expr_of_tree (Const (String "initial"));
-      init = [ (10, Const (String "initial")) ];
+      init = [ (Var 10, Const (String "initial")) ];
       steps =
         [
-          ((5, Input, Some "world"), [ (10, Const (String "world")) ]);
-          ((1, Click, None), [ (10, Const (String "hello")) ]);
-          ((5, Input, Some "changed"), [ (10, Const (String "changed")) ]);
+          ((Label 5, Input, Some "world"), [ (Var 10, Const (String "world")) ]);
+          ((Label 1, Click, None), [ (Var 10, Const (String "hello")) ]);
+          ( (Label 5, Input, Some "changed"),
+            [ (Var 10, Const (String "changed")) ] );
         ]
         (* 
        init: {10:"initial"}
@@ -407,11 +556,12 @@ let test () =
   let list_push_pop_abstraction =
     {
       sketch = expr_of_tree (Const (Int 0));
-      init = [ (20, List []) ];
+      init = [ (Var 20, List []) ];
       steps =
         [
-          ((100, Click, None), [ (20, List []) ]);
-          ((50, Click, None), [ (20, List [ Record [ (1, Const (Int 1)) ] ]) ]);
+          ((Label 100, Click, None), [ (Var 20, List []) ]);
+          ( (Label 50, Click, None),
+            [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
         ]
         (* 
        init: {20:[]}

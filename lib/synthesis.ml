@@ -123,13 +123,15 @@ let show_parameterizable_action (p_act : parameterizable_action) : string =
   | P_Input l -> Printf.sprintf "Input(%s)" (show_label l)
 
 let to_param_action (act : action) : parameterizable_action =
-  match act with l, Click, _ -> P_Click l | l, Input, _ -> P_Input l
+  match act with
+  | { label = l; action_type = Click; _ } -> P_Click l
+  | { label = l; action_type = Input; _ } -> P_Input l
 
 type synthesized_function = string * value list
 
 let synthesize (abstraction_data : abstraction) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
-  let { init; steps } = abstraction_data in
+  let { init; steps; _ } = abstraction_data in
   let steps_chronological = steps in
   (* 시간 순으로 스텝 정렬 *)
 
@@ -276,7 +278,7 @@ let synthesize (abstraction_data : abstraction) :
            List.for_all
              (fun (old_val, new_val, actual_act) ->
                match actual_act with
-               | _, Input, Some input_str -> (
+               | { action_type = Input; arg = Some input_str; _ } -> (
                    (* 실제 Input 액션에서 문자열 가져옴 *)
                    try
                      equal_value new_val (Const (String input_str))
@@ -494,12 +496,18 @@ let test () =
       init = [ (Var 1, Const (Int 0)) ];
       steps =
         [
-          ((Label 1, Click, None), [ (Var 1, Const (Int 1)) ]);
-          ((Label 1, Click, None), [ (Var 1, Const (Int 2)) ]);
-          ((Label 1, Click, None), [ (Var 1, Const (Int 3)) ]);
-          ((Label 2, Click, None), [ (Var 1, Const (Int 2)) ]);
-          ((Label 2, Click, None), [ (Var 1, Const (Int 1)) ]);
-          ((Label 2, Click, None), [ (Var 1, Const (Int 0)) ]);
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 1)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 2)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 3)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 2)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 1)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 0)) ] );
         ]
         (* 
        init: {1:0}
@@ -528,9 +536,11 @@ let test () =
       init = [ (Var 10, Const (String "initial")) ];
       steps =
         [
-          ((Label 5, Input, Some "world"), [ (Var 10, Const (String "world")) ]);
-          ((Label 1, Click, None), [ (Var 10, Const (String "hello")) ]);
-          ( (Label 5, Input, Some "changed"),
+          ( { label = Label 5; action_type = Input; arg = Some "world" },
+            [ (Var 10, Const (String "world")) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 10, Const (String "hello")) ] );
+          ( { label = Label 5; action_type = Input; arg = Some "changed" },
             [ (Var 10, Const (String "changed")) ] );
         ]
         (* 
@@ -559,8 +569,9 @@ let test () =
       init = [ (Var 20, List []) ];
       steps =
         [
-          ((Label 100, Click, None), [ (Var 20, List []) ]);
-          ( (Label 50, Click, None),
+          ( { label = Label 100; action_type = Click; arg = None },
+            [ (Var 20, List []) ] );
+          ( { label = Label 50; action_type = Click; arg = None },
             [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
         ]
         (* 

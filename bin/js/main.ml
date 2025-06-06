@@ -1,5 +1,6 @@
 open! Base
 open Redemon_lang.Tree
+open Redemon_lang
 
 let position (lexbuf : Lexing.lexbuf) : string =
   let open Lexing in
@@ -17,6 +18,25 @@ let parse_program_str (program_str : string) : (Syntax.tree, string) Result.t =
   | exception Parser.Error ->
       Error (Printf.sprintf "%s: syntax error" (position lexbuf))
 
+let synthesize (tree_src : string) (steps : Demo.demo_step list) :
+    (string, string) Result.t =
+  let ( let* ) x f = Result.bind x ~f in
+  let* tree = parse_program_str tree_src in
+  let demo = Demo.{ init = tree; steps } in
+  let _abs = Abstract.abstract_demo demo in
+  let prog =
+    Codegen.
+      {
+        view = _abs.sketch;
+        data =
+          Texpr.Record
+            (List.map ~f:(fun (v, _) -> (v, Texpr.Access v)) _abs.init);
+        handlers = [];
+        states = _abs.init;
+      }
+  in
+  Ok (Codegen.js_of_prog prog)
+
 let () =
   let open Js_of_ocaml in
   Js.export_all
@@ -31,6 +51,14 @@ let () =
                prog |> Syntax.yojson_of_tree |> Yojson.Safe.to_string
              in
              Js.Unsafe.global##._JSON##parse json_str
+         | Error err ->
+             Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
+
+       method synthesize tree_src steps =
+         synthesize tree_src steps |> function
+         | Ok js_code ->
+             Js.Unsafe.obj
+               [| ("code", js_code |> Js.string |> Js.Unsafe.inject) |]
          | Error err ->
              Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
     end)

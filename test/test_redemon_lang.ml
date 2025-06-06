@@ -156,12 +156,21 @@ let abstract_demo_testcases =
               ];
           steps =
             [
-              ( (Label 1, Demo.Click, None),
-                [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ] );
-              ( (Label 1, Demo.Click, None),
-                [ ([ Index 0; Index 0 ], Demo.Replace (String "2")) ] );
-              ( (Label 2, Demo.Click, None),
-                [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ] );
+              {
+                action =
+                  { label = Label 1; action_type = Demo.Click; arg = None };
+                edits = [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ];
+              };
+              {
+                action =
+                  { label = Label 1; action_type = Demo.Click; arg = None };
+                edits = [ ([ Index 0; Index 0 ], Demo.Replace (String "2")) ];
+              };
+              {
+                action =
+                  { label = Label 2; action_type = Demo.Click; arg = None };
+                edits = [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ];
+              };
             ];
         },
       Abstract.
@@ -218,9 +227,12 @@ let abstract_demo_testcases =
           init = [ (Var 1, Const (String "0")) ];
           steps =
             [
-              ((Label 1, Demo.Click, None), [ (Var 1, Const (String "1")) ]);
-              ((Label 1, Demo.Click, None), [ (Var 1, Const (String "2")) ]);
-              ((Label 2, Demo.Click, None), [ (Var 1, Const (String "1")) ]);
+              ( { label = Label 1; action_type = Demo.Click; arg = None },
+                [ (Var 1, Const (String "1")) ] );
+              ( { label = Label 1; action_type = Demo.Click; arg = None },
+                [ (Var 1, Const (String "2")) ] );
+              ( { label = Label 2; action_type = Demo.Click; arg = None },
+                [ (Var 1, Const (String "1")) ] );
             ];
         } );
     ( "todo list demo",
@@ -242,29 +254,55 @@ let abstract_demo_testcases =
               ];
           steps =
             [
-              ( (Label 1, Demo.Input, Some "Task 1"),
-                [
-                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "Task 1")));
-                ] );
-              ( (Label 2, Demo.Click, None),
-                [
-                  ( [ Index 2 ],
-                    Demo.Insert
-                      ( Index 0,
-                        tree_elem "li" [] [ tree_const (String "Task 1") ] ) );
-                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
-                ] );
-              ( (Label 1, Demo.Input, Some "New Task"),
-                [
-                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "New Task")));
-                ] );
-              ( (Label 2, Demo.Click, None),
-                [
-                  ([ Index 2 ], Demo.Dup (Index 0));
-                  ( [ Index 2; Index 1; Index 0 ],
-                    Demo.Replace (String "New Task") );
-                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
-                ] );
+              {
+                action =
+                  {
+                    label = Label 1;
+                    action_type = Demo.Input;
+                    arg = Some "Task 1";
+                  };
+                edits =
+                  [
+                    ([ Index 0 ], Demo.SetAttr ("value", Some (String "Task 1")));
+                  ];
+              };
+              {
+                action =
+                  { label = Label 2; action_type = Demo.Click; arg = None };
+                edits =
+                  [
+                    ( [ Index 2 ],
+                      Demo.Insert
+                        ( Index 0,
+                          tree_elem "li" [] [ tree_const (String "Task 1") ] )
+                    );
+                    ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
+                  ];
+              };
+              {
+                action =
+                  {
+                    label = Label 1;
+                    action_type = Demo.Input;
+                    arg = Some "New Task";
+                  };
+                edits =
+                  [
+                    ( [ Index 0 ],
+                      Demo.SetAttr ("value", Some (String "New Task")) );
+                  ];
+              };
+              {
+                action =
+                  { label = Label 2; action_type = Demo.Click; arg = None };
+                edits =
+                  [
+                    ([ Index 2 ], Demo.Dup (Index 0));
+                    ( [ Index 2; Index 1; Index 0 ],
+                      Demo.Replace (String "New Task") );
+                    ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
+                  ];
+              };
             ];
         },
       Abstract.
@@ -315,19 +353,27 @@ let abstract_demo_testcases =
           init = [ (Var 2, List []); (Var 1, Const (String "")) ];
           steps =
             [
-              ( (Label 1, Demo.Input, Some "Task 1"),
+              ( {
+                  label = Label 1;
+                  action_type = Demo.Input;
+                  arg = Some "Task 1";
+                },
                 [ (Var 2, List []); (Var 1, Const (String "Task 1")) ] );
-              ( (Label 2, Demo.Click, None),
+              ( { label = Label 2; action_type = Demo.Click; arg = None },
                 [
                   (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
                   (Var 1, Const (String ""));
                 ] );
-              ( (Label 1, Demo.Input, Some "New Task"),
+              ( {
+                  label = Label 1;
+                  action_type = Demo.Input;
+                  arg = Some "New Task";
+                },
                 [
                   (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
                   (Var 1, Const (String "New Task"));
                 ] );
-              ( (Label 2, Demo.Click, None),
+              ( { label = Label 2; action_type = Demo.Click; arg = None },
                 [
                   (Var 1, Const (String ""));
                   ( Var 2,

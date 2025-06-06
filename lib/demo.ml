@@ -1,10 +1,8 @@
 open Tree.Syntax
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives
 
-type index = Index of int [@@unboxed]
-
-let int_of_index (Index i) = i
-
-type path = index list
+type index = Index of int [@@unboxed] [@@deriving eq, show, yojson]
+type path = index list [@@deriving eq, show, yojson]
 
 type edit =
   | Dup of index
@@ -12,13 +10,18 @@ type edit =
   | Replace of const
   | Insert of index * tree
   | SetAttr of string * const option
+[@@deriving eq, show, yojson]
 
-type event = Click | Input [@@deriving eq, show]
-type action = label * event * string option [@@deriving eq, show]
-type demo_step = action * (path * edit) list
+type event = Click | Input [@@deriving eq, show, yojson]
+
+type action = { label : label; action_type : event; arg : string option }
+[@@deriving eq, show, yojson]
+
+type demo_step = { action : action; edits : (path * edit) list }
+[@@deriving eq, show, yojson]
+
 type demo = { init : tree; steps : demo_step list }
-
-exception Type_error of string
+[@@deriving eq, show, yojson]
 
 (* semantics of edit *)
 let apply_do (edit : edit) (t : tree) : tree =
@@ -38,7 +41,8 @@ let apply_do (edit : edit) (t : tree) : tree =
       (* Remove the i-th child *)
       let children' = List.filteri (fun j _ -> j <> i) children in
       Elem { t with children = children' }
-  | Replace _, Elem _ -> raise (Type_error "Cannot replace Elem with Const")
+  | Replace _, Elem _ ->
+      raise (Invalid_argument "Cannot replace Elem with Const")
   | Replace new_tree, Const _ -> Const new_tree
   | Insert (Index i, new_tree), Elem ({ children; _ } as t) ->
       if i > List.length children then
@@ -62,7 +66,7 @@ let apply_do (edit : edit) (t : tree) : tree =
       let attrs' = (key, AttrConst value) :: List.remove_assoc key attrs in
       Elem { t with attrs = attrs' }
   | (Dup _ | Del _ | Insert _ | SetAttr _), Const _ ->
-      raise (Type_error "Cannot apply edit to Const")
+      raise (Invalid_argument "Cannot apply edit to Const")
 
 let rec apply_traverse (path : path) (edit : edit) (t : tree) : tree =
   match path with

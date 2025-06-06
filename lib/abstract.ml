@@ -9,8 +9,6 @@ type abstraction = {
 }
 [@@deriving eq, show]
 
-exception Not_supported of string
-
 let expr_of_attr_value (v : attr_value) : expr =
   match v with AttrFunc l -> HandlerHole l | AttrConst c -> Const c
 
@@ -48,7 +46,7 @@ let rec free_vars (e : expr) : var list =
 let list_of_value (v : value) : value list =
   match v with
   | List lst -> lst
-  | _ -> raise (Type_error "Expected List for list_of_value")
+  | _ -> raise (Invalid_argument "Expected List for list_of_value")
 
 let abstract_step (edit : edit) (e : expr) (env : record) :
     expr * (record -> record) * record =
@@ -75,7 +73,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
           match r with
           | Record _ -> [ r ]
           | Null -> []
-          | _ -> raise (Type_error "Expected Record for Dup")
+          | _ -> raise (Invalid_argument "Expected Record for Dup")
         in
         record_update env var (List l)
       in
@@ -191,7 +189,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
           in
           (e', s, env')
       | Some _ ->
-          raise (Not_supported "Setting non-const attribute not supported")
+          raise (Invalid_argument "Setting non-const attribute not supported")
       | None ->
           let var = fresh_var env in
           let attrs' = (key, Access var) :: attrs in
@@ -202,17 +200,17 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
               (match attr with Some c -> Const c | None -> Null)
           in
           (e', s, env'))
-  | _, _ -> raise (Not_supported "Unsupported edit type or expression")
+  | _, _ -> raise (Invalid_argument "Unsupported edit type or expression")
 
 let record_of_value (v : value) : record =
   match v with
   | Record r -> r
-  | _ -> raise (Type_error "Expected Record for record_of_value")
+  | _ -> raise (Invalid_argument "Expected Record for record_of_value")
 
 let s_value (s : record -> record) (v : value) : value =
   match v with
   | Record r -> Record (s r)
-  | _ -> raise (Type_error "Expected Record for apply_substitution_value")
+  | _ -> raise (Invalid_argument "Expected Record for apply_substitution_value")
 
 (* abstract_step_traverse path edit e env0 = (e', s, env') =>
    (forall env ~ env0, teval e' (s env) = teval e env) AND
@@ -235,7 +233,7 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
         | Record inner_env ->
             let inner_env' = inner_s inner_env in
             record_update env var (Record inner_env')
-        | _ -> raise (Type_error "Expected Record or Null for OMap")
+        | _ -> raise (Invalid_argument "Expected Record or Null for OMap")
       in
       let env' = record_update env var (Record inner_env') in
       (e', s, env')
@@ -277,14 +275,15 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
                 lst))
       in
       (e', s, env')
-  | _ -> raise (Not_supported "Unsupported expression or path for abstraction")
+  | _ ->
+      raise (Invalid_argument "Unsupported expression or path for abstraction")
 
 let init_abstraction (init : tree) : abstraction =
   let sketch = expr_of_tree init in
   { sketch; init = []; steps = [] }
 
 let add_step ({ sketch; init; steps } : abstraction)
-    ((action, edits) : demo_step) : abstraction =
+    ({ action; edits } : demo_step) : abstraction =
   let last_env =
     match List.rev steps with [] -> init | (_, env) :: _ -> env
   in

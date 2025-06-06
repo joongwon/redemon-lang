@@ -1,5 +1,5 @@
 (library
- (name tree)
+ (name redemon__tree)
  (preprocess
   (pps ppx_yojson_conv ppx_deriving.show ppx_deriving.eq)))
 
@@ -7,5 +7,3 @@
  (modules parser))
 
 (ocamllex lexer)
-
-(include_subdirs no)

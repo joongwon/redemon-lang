@@ -1,12 +1,16 @@
 open Tree.Syntax
 
-type path = int list
+type index = Index of int [@@unboxed]
+
+let int_of_index (Index i) = i
+
+type path = index list
 
 type edit =
-  | Dup of int
-  | Del of int
+  | Dup of index
+  | Del of index
   | Replace of const
-  | Insert of int * tree
+  | Insert of index * tree
   | SetAttr of string * const option
 
 type event = Click | Input [@@deriving eq, show]
@@ -19,7 +23,7 @@ exception Type_error of string
 (* semantics of edit *)
 let apply_do (edit : edit) (t : tree) : tree =
   match (edit, t) with
-  | Dup i, Elem ({ children; _ } as t) ->
+  | Dup (Index i), Elem ({ children; _ } as t) ->
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for duplication");
       (* Duplicate the i-th child *)
@@ -28,7 +32,7 @@ let apply_do (edit : edit) (t : tree) : tree =
         |> List.concat
       in
       Elem { t with children = children' }
-  | Del i, Elem ({ children; _ } as t) ->
+  | Del (Index i), Elem ({ children; _ } as t) ->
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for deletion");
       (* Remove the i-th child *)
@@ -36,7 +40,7 @@ let apply_do (edit : edit) (t : tree) : tree =
       Elem { t with children = children' }
   | Replace _, Elem _ -> raise (Type_error "Cannot replace Elem with Const")
   | Replace new_tree, Const _ -> Const new_tree
-  | Insert (i, new_tree), Elem ({ children; _ } as t) ->
+  | Insert (Index i, new_tree), Elem ({ children; _ } as t) ->
       if i > List.length children then
         raise (Invalid_argument "Index out of bounds for insertion");
       (* Insert new_tree at index i *)
@@ -63,7 +67,7 @@ let apply_do (edit : edit) (t : tree) : tree =
 let rec apply_traverse (path : path) (edit : edit) (t : tree) : tree =
   match path with
   | [] -> apply_do edit t
-  | i :: rest -> (
+  | Index i :: rest -> (
       match t with
       | Elem ({ children; _ } as t) ->
           if i >= List.length children then

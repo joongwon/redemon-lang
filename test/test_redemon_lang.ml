@@ -28,7 +28,7 @@ let parse_tree_testcases =
         [
           ("a", AttrConst (String "b"));
           ("c", AttrConst (Int 1));
-          ("f", AttrFunc 1);
+          ("f", AttrFunc (Label 1));
         ]
         [] );
     ( "counter example",
@@ -54,7 +54,7 @@ let parse_tree_testcases =
               ( "className",
                 AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
               );
-              ("onClick", AttrFunc 1);
+              ("onClick", AttrFunc (Label 1));
             ]
             [ tree_const (String "Increment") ];
         ] );
@@ -70,8 +70,8 @@ let test_init_abstraction (name, input, expected) =
 
 let init_abstraction_testcases =
   [
-    ("text", tree_const (String "foo"), (Const (String "foo") : Texpr.expr));
-    ( "counter example",
+    ("basic", tree_const (String "foo"), (Const (String "foo") : Texpr.expr));
+    ( "counter",
       tree_elem "div"
         [ ("className", AttrConst (String "flex flex-col items-center")) ]
         [
@@ -83,7 +83,7 @@ let init_abstraction_testcases =
               ( "className",
                 AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
               );
-              ("onClick", AttrFunc 1);
+              ("onClick", AttrFunc (Label 1));
             ]
             [ tree_const (String "Increment") ];
         ],
@@ -110,7 +110,7 @@ let init_abstraction_testcases =
                           Const
                             (String "bg-stone-500 text-white px-2 py-1 rounded")
                         );
-                        ("onClick", HandlerHole 1);
+                        ("onClick", HandlerHole (Label 1));
                       ];
                     children = List [ Const (String "Increment") ];
                   };
@@ -142,7 +142,7 @@ let abstract_demo_testcases =
                     ( "className",
                       AttrConst
                         (String "bg-stone-500 text-white px-2 py-1 rounded") );
-                    ("onClick", AttrFunc 1);
+                    ("onClick", AttrFunc (Label 1));
                   ]
                   [ tree_const (String "Increment") ];
                 tree_elem "button"
@@ -150,15 +150,18 @@ let abstract_demo_testcases =
                     ( "className",
                       AttrConst
                         (String "bg-stone-500 text-white px-2 py-1 rounded") );
-                    ("onClick", AttrFunc 2);
+                    ("onClick", AttrFunc (Label 2));
                   ]
                   [ tree_const (String "Decrement") ];
               ];
           steps =
             [
-              ((1, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
-              ((1, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "2")) ]);
-              ((2, Demo.Click, None), [ ([ 0; 0 ], Demo.Replace (String "1")) ]);
+              ( (Label 1, Demo.Click, None),
+                [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ] );
+              ( (Label 1, Demo.Click, None),
+                [ ([ Index 0; Index 0 ], Demo.Replace (String "2")) ] );
+              ( (Label 2, Demo.Click, None),
+                [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ] );
             ];
         },
       Abstract.
@@ -180,7 +183,7 @@ let abstract_demo_testcases =
                               ( "className",
                                 Const (String "font-semibold text-lg") );
                             ];
-                          children = List [ Access 1 ];
+                          children = List [ Access (Var 1) ];
                         };
                       Elem
                         {
@@ -192,7 +195,7 @@ let abstract_demo_testcases =
                                   (String
                                      "bg-stone-500 text-white px-2 py-1 rounded")
                               );
-                              ("onClick", HandlerHole 1);
+                              ("onClick", HandlerHole (Label 1));
                             ];
                           children = List [ Const (String "Increment") ];
                         };
@@ -206,18 +209,134 @@ let abstract_demo_testcases =
                                   (String
                                      "bg-stone-500 text-white px-2 py-1 rounded")
                               );
-                              ("onClick", HandlerHole 2);
+                              ("onClick", HandlerHole (Label 2));
                             ];
                           children = List [ Const (String "Decrement") ];
                         };
                     ];
               };
-          init = [ (1, Const (String "0")) ];
+          init = [ (Var 1, Const (String "0")) ];
           steps =
             [
-              ((1, Demo.Click, None), [ (1, Const (String "1")) ]);
-              ((1, Demo.Click, None), [ (1, Const (String "2")) ]);
-              ((2, Demo.Click, None), [ (1, Const (String "1")) ]);
+              ((Label 1, Demo.Click, None), [ (Var 1, Const (String "1")) ]);
+              ((Label 1, Demo.Click, None), [ (Var 1, Const (String "2")) ]);
+              ((Label 2, Demo.Click, None), [ (Var 1, Const (String "1")) ]);
+            ];
+        } );
+    ( "todo list demo",
+      Demo.
+        {
+          init =
+            tree_elem "div" []
+              [
+                tree_elem "input"
+                  [
+                    ("onChange", AttrFunc (Label 1));
+                    ("value", AttrConst (String ""));
+                  ]
+                  [];
+                tree_elem "button"
+                  [ ("onClick", AttrFunc (Label 2)) ]
+                  [ tree_const (String "Add Task") ];
+                tree_elem "ul" [] [];
+              ];
+          steps =
+            [
+              ( (Label 1, Demo.Input, Some "Task 1"),
+                [
+                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "Task 1")));
+                ] );
+              ( (Label 2, Demo.Click, None),
+                [
+                  ( [ Index 2 ],
+                    Demo.Insert
+                      ( Index 0,
+                        tree_elem "li" [] [ tree_const (String "Task 1") ] ) );
+                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
+                ] );
+              ( (Label 1, Demo.Input, Some "New Task"),
+                [
+                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "New Task")));
+                ] );
+              ( (Label 2, Demo.Click, None),
+                [
+                  ([ Index 2 ], Demo.Dup (Index 0));
+                  ( [ Index 2; Index 1; Index 0 ],
+                    Demo.Replace (String "New Task") );
+                  ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
+                ] );
+            ];
+        },
+      Abstract.
+        {
+          sketch =
+            Elem
+              {
+                name = "div";
+                attrs = [];
+                children =
+                  List
+                    [
+                      Elem
+                        {
+                          name = "input";
+                          attrs =
+                            [
+                              ("value", Access (Var 1));
+                              ("onChange", HandlerHole (Label 1));
+                            ];
+                          children = List [];
+                        };
+                      Elem
+                        {
+                          name = "button";
+                          attrs = [ ("onClick", HandlerHole (Label 2)) ];
+                          children = List [ Const (String "Add Task") ];
+                        };
+                      Elem
+                        {
+                          name = "ul";
+                          attrs = [];
+                          children =
+                            ListMap
+                              {
+                                lst = Var 2;
+                                body =
+                                  Elem
+                                    {
+                                      name = "li";
+                                      attrs = [];
+                                      children = List [ Access (Var 1) ];
+                                    };
+                              };
+                        };
+                    ];
+              };
+          init = [ (Var 2, List []); (Var 1, Const (String "")) ];
+          steps =
+            [
+              ( (Label 1, Demo.Input, Some "Task 1"),
+                [ (Var 2, List []); (Var 1, Const (String "Task 1")) ] );
+              ( (Label 2, Demo.Click, None),
+                [
+                  (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
+                  (Var 1, Const (String ""));
+                ] );
+              ( (Label 1, Demo.Input, Some "New Task"),
+                [
+                  (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
+                  (Var 1, Const (String "New Task"));
+                ] );
+              ( (Label 2, Demo.Click, None),
+                [
+                  (Var 1, Const (String ""));
+                  ( Var 2,
+                    List
+                      [
+                        Record [ (Var 1, Const (String "Task 1")) ];
+                        Record [ (Var 1, Const (String "New Task")) ];
+                      ] );
+                ] );
             ];
         } );
   ]

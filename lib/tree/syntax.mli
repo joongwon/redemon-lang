@@ -1,5 +1,5 @@
 type const = String of string | Int of int
-type label = int
+type label = Label of int [@@unboxed]
 type attr_value = AttrConst of const | AttrFunc of label
 
 type tree = Const of const | Elem of elem

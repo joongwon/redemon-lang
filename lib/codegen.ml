@@ -18,7 +18,7 @@ let prop_prefix = "x"
 let rec js_of_expr ~(prefix : string) (e : expr) : string =
   match e with
   | Const c -> string_of_const c
-  | Access v -> Printf.sprintf "%s%d" prefix v
+  | Access (Var v) -> Printf.sprintf "%s%d" prefix v
   | Elem { name; attrs; children } ->
       let attrs_str =
         String.concat " "
@@ -28,20 +28,20 @@ let rec js_of_expr ~(prefix : string) (e : expr) : string =
       in
       let children_str = jsx_of_expr ~prefix children in
       Printf.sprintf "<%s %s>%s</%s>" name attrs_str children_str name
-  | HandlerHole l -> Printf.sprintf "$%d" l
+  | HandlerHole (Label l) -> Printf.sprintf "$%d" l
   | List es -> "[" ^ String.concat ", " (List.map (js_of_expr ~prefix) es) ^ "]"
   | Record r ->
       "{"
       ^ String.concat ", "
           (List.map
-             (fun (v, e') ->
+             (fun (Var v, e') ->
                Printf.sprintf "%s%d: %s" prop_prefix v (js_of_expr ~prefix e'))
              r)
       ^ "}"
-  | OptionMap { opt; body } ->
+  | OptionMap { opt = Var opt; body } ->
       let opt = Printf.sprintf "%s%d" prefix opt in
       Printf.sprintf "(%s ? %s : null)" opt (js_of_expr ~prefix:opt body)
-  | ListMap { lst; body } ->
+  | ListMap { lst = Var lst; body } ->
       let lst = Printf.sprintf "%s%d" prefix lst in
       let arg = "item" in
       (* could be any name *)
@@ -60,7 +60,7 @@ let js_of_attr_value (v : attr_value) : string =
   match v with
   | AttrConst (String s) -> Printf.sprintf "\"%s\"" s
   | AttrConst (Int i) -> Printf.sprintf "{%d}" i
-  | AttrFunc l -> Printf.sprintf "$%d" l
+  | AttrFunc (Label l) -> Printf.sprintf "$%d" l
 
 let rec js_of_tree (t : tree) : string =
   match t with
@@ -79,14 +79,14 @@ let rec js_of_value (v : value) : string =
   match v with
   | Tree t -> js_of_tree t
   | Const c -> string_of_const c
-  | HandlerHole l -> Printf.sprintf "$%d" l
+  | HandlerHole (Label l) -> Printf.sprintf "$%d" l
   | Null -> "null"
   | List vs -> "[" ^ String.concat ", " (List.map js_of_value vs) ^ "]"
   | Record r ->
       "{"
       ^ String.concat ", "
           (List.map
-             (fun (v, e) -> Printf.sprintf "x%d: %s" v (js_of_value e))
+             (fun (Var v, e) -> Printf.sprintf "x%d: %s" v (js_of_value e))
              r)
       ^ "}"
 
@@ -94,18 +94,18 @@ let js_of_prog (p : prog) : string =
   "function App() {\n"
   ^ String.concat ""
       (List.map
-         (fun (v, value) ->
+         (fun (Var v, value) ->
            Printf.sprintf "  const [s%d, setS%d] = useState(%s);\n" v v
              (js_of_value value))
          p.states)
   ^ Printf.sprintf "  const data = %s;\n" (js_of_expr ~prefix:"s" p.data)
   ^ String.concat ""
       (List.map
-         (fun (label, event, body) ->
+         (fun (Label label, event, body) ->
            let body =
              String.concat "\n"
                (List.map
-                  (fun (v, e) ->
+                  (fun (Var v, e) ->
                     Printf.sprintf "    setS%d(%s);\n" v
                       (js_of_expr ~prefix:"s" e))
                   body)

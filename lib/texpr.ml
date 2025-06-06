@@ -1,6 +1,6 @@
 open Tree.Syntax
 
-type var = int [@@deriving eq, show]
+type var = Var of int [@@unboxed] [@@deriving eq, show]
 
 (* an expression accepting single record (namely, 'root') as an environment *)
 type expr =
@@ -9,8 +9,8 @@ type expr =
   | Elem of elem
   | HandlerHole of label
   | List of expr list
-  | Record of
-      (var * expr) list (* expr : const | record | null | list of record *)
+  | Record of (var * expr) list
+    (* expr : const | record | null | list of record *)
   | OptionMap of { opt : var; (* opt : record | null *) body : expr }
     (* root.x ? (let root = root.x in body) : null *)
   | ListMap of {

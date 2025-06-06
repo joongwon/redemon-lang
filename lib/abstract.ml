@@ -30,8 +30,8 @@ let record_update (r : record) (var : var) (v : value) : record =
   (var, v) :: List.remove_assoc var r
 
 let fresh_var (r : record) : var =
-  let keys = List.map fst r in
-  1 + List.fold_left max 0 keys
+  let keys = List.map (fun (Var k, _) -> k) r in
+  Var (1 + List.fold_left max 0 keys)
 
 let rec free_vars (e : expr) : var list =
   match e with
@@ -64,7 +64,27 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
       let s env = record_update env var (Const old_c) in
       let env' = record_update env var (Const new_c) in
       (e', s, env')
-  | Dup 0, Elem ({ children = List [ child ]; _ } as elem) ->
+  | ( Dup (Index 0),
+      Elem ({ children = List [ OptionMap { opt = var; body } ]; _ } as elem) )
+    ->
+      let e' = Elem { elem with children = ListMap { lst = var; body } } in
+      let s env =
+        (* convert option to list *)
+        let r = List.assoc var env in
+        let l =
+          match r with
+          | Record _ -> [ r ]
+          | Null -> []
+          | _ -> raise (Type_error "Expected Record for Dup")
+        in
+        record_update env var (List l)
+      in
+      let env' =
+        let r = List.assoc var env in
+        record_update env var (List [ r; r ])
+      in
+      (e', s, env')
+  | Dup (Index 0), Elem ({ children = List [ child ]; _ } as elem) ->
       let var = fresh_var env in
       let vars = free_vars child in
       let e' =
@@ -83,7 +103,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update new_env var (List [ Record child_env; Record child_env ])
       in
       (e', s, env')
-  | Dup i, Elem { children = ListMap { lst = var; _ }; _ } ->
+  | Dup (Index i), Elem { children = ListMap { lst = var; _ }; _ } ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for duplication");
@@ -96,7 +116,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
              |> List.concat))
       in
       (e', s, env')
-  | Del i, Elem ({ children = List children; _ } as elem) ->
+  | Del (Index i), Elem ({ children = List children; _ } as elem) ->
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for deletion");
       let var = fresh_var env in
@@ -121,7 +141,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update new_env' var Null
       in
       (e', s, env')
-  | Del i, Elem { children = ListMap { lst = var; _ }; _ } ->
+  | Del (Index i), Elem { children = ListMap { lst = var; _ }; _ } ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for deletion");
@@ -129,7 +149,8 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update env var (List (List.filteri (fun j _ -> j <> i) lst))
       in
       (e, Fun.id, env')
-  | Insert (i, new_tree), Elem ({ children = List children; _ } as elem) ->
+  | Insert (Index i, new_tree), Elem ({ children = List children; _ } as elem)
+    ->
       if i > List.length children then
         raise (Invalid_argument "Index out of bounds for insertion");
       let new_texpr = expr_of_tree new_tree in
@@ -221,7 +242,7 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
   | _, [] ->
       (* no more path, apply the edit directly *)
       abstract_step edit e env
-  | Elem ({ children = List children; _ } as elem), i :: rest ->
+  | Elem ({ children = List children; _ } as elem), Index i :: rest ->
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for path");
       let child_e = List.nth children i in
@@ -231,7 +252,8 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
       in
       let e' = Elem { elem with children = List children' } in
       (e', s, env')
-  | Elem ({ children = ListMap { lst = var; body }; _ } as elem), i :: rest ->
+  | ( Elem ({ children = ListMap { lst = var; body }; _ } as elem),
+      Index i :: rest ) ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for path");

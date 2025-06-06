@@ -42,6 +42,7 @@ let rec free_vars (e : expr) : var list =
   | OptionMap { opt; _ } -> [ opt ]
   | Record kvs -> List.concat_map (fun (_, v) -> free_vars v) kvs
   | List l -> List.concat_map free_vars l
+  | Fun _ -> []
 
 let list_of_value (v : value) : value list =
   match v with

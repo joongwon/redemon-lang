@@ -87,3 +87,4 @@ let rec eval (e : expr) (root : record) : value =
                  | _ -> failwith "Expected a record in list")
                records)
       | _ -> failwith "Expected a list")
+  | Fun _ -> failwith "Function not implemented in eval"

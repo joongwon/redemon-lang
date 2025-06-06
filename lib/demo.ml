@@ -14,11 +14,17 @@ type edit =
 
 type action_type = Click | Input [@@deriving eq, show, yojson]
 
-type action = { label : label; action_type : action_type; arg : string option }
+type action = {
+  label : label;
+  action_type : action_type;
+  arg : string option; [@yojson.option]
+}
 [@@deriving eq, show, yojson]
 
 type demo_step = { action : action; edits : (path * edit) list }
 [@@deriving eq, show, yojson]
+
+type demo_step_list = demo_step list [@@deriving eq, show, yojson]
 
 type demo = { init : tree; steps : demo_step list }
 [@@deriving eq, show, yojson]

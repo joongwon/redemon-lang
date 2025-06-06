@@ -2,5 +2,11 @@
  (name main)
  (modes js)
  (preprocess
-  (pps js_of_ocaml-ppx))
- (libraries redemon_lang base js_of_ocaml))
+  (pps js_of_ocaml-ppx ppx_deriving.show ppx_yojson_conv))
+ (libraries redemon_lang base logs.browser js_of_ocaml))
+
+(rule
+ (target lang.bc.js)
+ (deps main.bc.js)
+ (action
+  (copy %{deps} %{target})))

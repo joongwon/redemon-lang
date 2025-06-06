@@ -127,4 +127,4 @@ let js_of_prog (p : prog) : string =
          p.handlers)
   ^ Printf.sprintf "  return %s;\n"
       (js_of_expr ~prefix:("data." ^ prop_prefix) p.view)
-  ^ "}\n\n" ^ "render(<App />, document.getElementById('root'));\n"
+  ^ "}\n\n" ^ "render(<App />);\n"

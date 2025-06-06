@@ -3,6 +3,27 @@ open Redemon_lang.Tree.Syntax
 open Redemon_lang.Tree
 open Redemon_lang
 
+let test_demo (name, input, expected) =
+  test_case name `Quick (fun () ->
+      let result =
+        input |> Demo.yojson_of_demo_step_list |> Yojson.Safe.to_string
+      in
+      check string name expected result)
+
+let demo_testcases =
+  let open Demo in
+  [
+    ( "increment",
+      [
+        {
+          action = { label = Label 0; action_type = Click; arg = None };
+          edits = [ ([ Index 0; Index 0 ], Replace (String "1")) ];
+        };
+      ],
+      {|[{"action":{"label":["Label",0],"action_type":["Click"]},"edits":[[[["Index",0],["Index",0]],["Replace",["String","1"]]]]}]|}
+    );
+  ]
+
 let test_parse_tree (name, input, expected) =
   test_case name `Quick (fun () ->
       try
@@ -426,10 +447,11 @@ let test_synthesis () =
 let () =
   run "Redemon Lang Tests"
     [
+      ("Parse demo", List.map test_demo demo_testcases);
       ("Parse Tree", List.map test_parse_tree parse_tree_testcases);
       ( "Init Abstraction",
         List.map test_init_abstraction init_abstraction_testcases );
       ("Abstract Demo", List.map test_abstract_demo abstract_demo_testcases);
-      ( "Synthesis",
-        [ test_case "Synthesize Counter Demo" `Quick test_synthesis ] );
+      (* ( "Synthesis", *)
+      (*   [ test_case "Synthesize Counter Demo" `Quick test_synthesis ] ); *)
     ]

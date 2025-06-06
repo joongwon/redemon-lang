@@ -19,11 +19,13 @@ let parse_program_str (program_str : string) : (Syntax.tree, string) Result.t =
       Error (Printf.sprintf "%s: syntax error" (position lexbuf))
 
 let pairs_to_assoc_list pairs =
-  List.fold_left ~f:(fun acc (k, v) ->
-    match Stdlib.List.assoc_opt k acc with
-    | Some existing_v -> (k, existing_v @ [v]) :: Stdlib.List.remove_assoc k acc
-    | None -> (k, [v]) :: acc) ~init:[] pairs
-
+  List.fold_left
+    ~f:(fun acc (k, v) ->
+      match Stdlib.List.assoc_opt k acc with
+      | Some existing_v ->
+          (k, existing_v @ [ v ]) :: Stdlib.List.remove_assoc k acc
+      | None -> (k, [ v ]) :: acc)
+    ~init:[] pairs
 
 let synthesize (tree_src : string) (steps : Demo.demo_step list) :
     (string, string) Result.t =
@@ -31,16 +33,21 @@ let synthesize (tree_src : string) (steps : Demo.demo_step list) :
   let* tree = parse_program_str tree_src in
   let demo = Demo.{ init = tree; steps } in
   let abs = Abstract.abstract_demo demo in
-  let result = Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules |>
-    List.map ~f:(fun Synthesis.{ state; label; action_type; func } ->
-      ((label, action_type), (state, func))) 
-    |> pairs_to_assoc_list in
-  let prog = Codegen.{
-    view = abs.sketch;
-    data = Record (List.map ~f:(fun (v, _) -> (v, Texpr.Access v)) abs.init);
-    handlers = result;
-    states = abs.init;
-  } in
+  let result =
+    Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
+    |> List.map ~f:(fun Synthesis.{ state; label; action_type; func } ->
+           ((label, action_type), (state, func)))
+    |> pairs_to_assoc_list
+  in
+  let prog =
+    Codegen.
+      {
+        view = abs.sketch;
+        data = Record (List.map ~f:(fun (v, _) -> (v, Texpr.Access v)) abs.init);
+        handlers = result;
+        states = abs.init;
+      }
+  in
   Ok (Codegen.js_of_prog prog)
 
 let () =
@@ -61,7 +68,8 @@ let () =
              Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
 
        method synthesize tree_src steps =
-         synthesize tree_src steps |> function
+         (* Use array which is compatible with JS array *)
+         synthesize tree_src (List.of_array steps) |> function
          | Ok js_code ->
              Js.Unsafe.obj
                [| ("code", js_code |> Js.string |> Js.Unsafe.inject) |]

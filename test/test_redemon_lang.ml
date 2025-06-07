@@ -125,51 +125,49 @@ let test_abstract_demo (name, input, expected) =
         (testable Abstract.pp_abstraction Abstract.equal_abstraction)
         name expected result)
 
-let counter_demo = Demo.
-        {
-          init =
-            tree_elem "div"
-              [ ("className", AttrConst (String "flex flex-col items-center")) ]
+let counter_demo =
+  Demo.
+    {
+      init =
+        tree_elem "div"
+          [ ("className", AttrConst (String "flex flex-col items-center")) ]
+          [
+            tree_elem "span"
+              [ ("className", AttrConst (String "font-semibold text-lg")) ]
+              [ tree_const (Int 0) ];
+            tree_elem "button"
               [
-                tree_elem "span"
-                  [ ("className", AttrConst (String "font-semibold text-lg")) ]
-                  [ tree_const (String "0") ];
-                tree_elem "button"
-                  [
-                    ( "className",
-                      AttrConst
-                        (String "bg-stone-500 text-white px-2 py-1 rounded") );
-                    ("onClick", AttrFunc (Label 1));
-                  ]
-                  [ tree_const (String "Increment") ];
-                tree_elem "button"
-                  [
-                    ( "className",
-                      AttrConst
-                        (String "bg-stone-500 text-white px-2 py-1 rounded") );
-                    ("onClick", AttrFunc (Label 2));
-                  ]
-                  [ tree_const (String "Decrement") ];
-              ];
-          steps =
-            [
-              {
-                action =
-                  { label = Label 1; action_type = Demo.Click; arg = None };
-                edits = [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ];
-              };
-              {
-                action =
-                  { label = Label 1; action_type = Demo.Click; arg = None };
-                edits = [ ([ Index 0; Index 0 ], Demo.Replace (String "2")) ];
-              };
-              {
-                action =
-                  { label = Label 2; action_type = Demo.Click; arg = None };
-                edits = [ ([ Index 0; Index 0 ], Demo.Replace (String "1")) ];
-              };
-            ];
-        }
+                ( "className",
+                  AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
+                );
+                ("onClick", AttrFunc (Label 1));
+              ]
+              [ tree_const (String "Increment") ];
+            tree_elem "button"
+              [
+                ( "className",
+                  AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
+                );
+                ("onClick", AttrFunc (Label 2));
+              ]
+              [ tree_const (String "Decrement") ];
+          ];
+      steps =
+        [
+          {
+            action = { label = Label 1; action_type = Demo.Click; arg = None };
+            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 1)) ];
+          };
+          {
+            action = { label = Label 1; action_type = Demo.Click; arg = None };
+            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 2)) ];
+          };
+          {
+            action = { label = Label 2; action_type = Demo.Click; arg = None };
+            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 1)) ];
+          };
+        ];
+    }
 
 let abstract_demo_testcases =
   [
@@ -226,15 +224,15 @@ let abstract_demo_testcases =
                         };
                     ];
               };
-          init = [ (Var 1, Const (String "0")) ];
+          init = [ (Var 1, Const (Int 0)) ];
           steps =
             [
               ( { label = Label 1; action_type = Demo.Click; arg = None },
-                [ (Var 1, Const (String "1")) ] );
+                [ (Var 1, Const (Int 1)) ] );
               ( { label = Label 1; action_type = Demo.Click; arg = None },
-                [ (Var 1, Const (String "2")) ] );
+                [ (Var 1, Const (Int 2)) ] );
               ( { label = Label 2; action_type = Demo.Click; arg = None },
-                [ (Var 1, Const (String "1")) ] );
+                [ (Var 1, Const (Int 1)) ] );
             ];
         } );
     ( "todo list demo",
@@ -390,33 +388,55 @@ let abstract_demo_testcases =
   ]
 
 let pairs_to_assoc_list pairs =
-  List.fold_left (fun acc (k, v) ->
-    match List.assoc_opt k acc with
-    | Some existing_v -> (k, existing_v @ [v]) :: List.remove_assoc k acc
-    | None -> (k, [v]) :: acc) [] pairs
+  List.fold_left
+    (fun acc (k, v) ->
+      match List.assoc_opt k acc with
+      | Some existing_v -> (k, existing_v @ [ v ]) :: List.remove_assoc k acc
+      | None -> (k, [ v ]) :: acc)
+    [] pairs
 
 let test_synthesis () =
   let abs = Abstract.abstract_demo counter_demo in
-  let result = Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules |>
-    List.map (fun Synthesis.{ state; label; action_type; func } ->
-      ((label, action_type), (state, func))) 
-    |> pairs_to_assoc_list in
-  let prog = Codegen.{
-    view = abs.sketch;
-    data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
-    handlers = result;
-    states = abs.init;
-  } in
-  check (testable Codegen.pp_prog Codegen.equal_prog) "Synthesis Test" 
-    prog
+  let result =
+    Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
+    |> List.map (fun Synthesis.{ state; label; action_type; func } ->
+           ((label, action_type), (state, func)))
+    |> pairs_to_assoc_list
+  in
+  let prog =
+    Codegen.
+      {
+        view = abs.sketch;
+        data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
+        handlers = result;
+        states = abs.init;
+      }
+  in
+  check
+    (testable Codegen.pp_prog Codegen.equal_prog)
+    "Synthesis Test"
     {
       view = abs.sketch;
       data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
       handlers =
         [
+          ( (Label 1, Demo.Click),
+            [
+              ( Var 1,
+                Fun { func = "plus"; args = [ Access (Var 1); Const (Int 1) ] }
+              );
+            ] );
+          ( (Label 2, Demo.Click),
+            [
+              ( Var 1,
+                Fun
+                  { func = "divide"; args = [ Access (Var 1); Const (Int 2) ] }
+              );
+            ] );
         ];
       states = abs.init;
     }
+    prog
 
 let () =
   run "Redemon Lang Tests"
@@ -425,5 +445,6 @@ let () =
       ( "Init Abstraction",
         List.map test_init_abstraction init_abstraction_testcases );
       ("Abstract Demo", List.map test_abstract_demo abstract_demo_testcases);
-      ("Synthesis", [test_case "Synthesize Counter Demo" `Quick test_synthesis]);
+      ( "Synthesis",
+        [ test_case "Synthesize Counter Demo" `Quick test_synthesis ] );
     ]

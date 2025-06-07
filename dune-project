@@ -15,6 +15,7 @@
   menhir
   dune
   base
+  logs
   js_of_ocaml
   js_of_ocaml-ppx
   ppx_deriving

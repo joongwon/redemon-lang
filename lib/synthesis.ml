@@ -57,7 +57,7 @@ let push (v1 : value) (v2 : value) : value =
 let pop (v1 : value) : value =
   match v1 with
   | List [] -> raise (LengthError "Pop: Cannot pop from an empty list")
-  | List (r :: l) -> List l
+  | List (_ :: l) -> List l
   | _ -> raise (TypeError "Pop: Expected a list")
 
 (* interger function *)
@@ -349,7 +349,7 @@ type synthesized_rule = {
 
 let rec value_to_expr (v : value) : expr =
   match v with
-  | Tree t -> failwith "Tree cannot be converted to expr directly"
+  | Tree _ -> failwith "Tree cannot be converted to expr directly"
   | Const c -> Const c
   | Record r ->
       Record (List.map (fun (v_id, v_val) -> (v_id, value_to_expr v_val)) r)

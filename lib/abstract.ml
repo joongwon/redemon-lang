@@ -42,6 +42,7 @@ let rec free_vars (e : expr) : var list =
   | OptionMap { opt; _ } -> [ opt ]
   | Record kvs -> List.concat_map (fun (_, v) -> free_vars v) kvs
   | List l -> List.concat_map free_vars l
+  | Fun _ -> []
 
 let list_of_value (v : value) : value list =
   match v with
@@ -51,18 +52,18 @@ let list_of_value (v : value) : value list =
 let abstract_step (edit : edit) (e : expr) (env : record) :
     expr * (record -> record) * record =
   match (edit, e) with
-  | Replace new_c, Access var ->
+  | ConstReplace new_c, Access var ->
       let e' = e in
       let s = Fun.id in
       let env' = record_update env var (Const new_c) in
       (e', s, env')
-  | Replace new_c, Const old_c ->
+  | ConstReplace new_c, Const old_c ->
       let var = fresh_var env in
       let e' = Access var in
       let s env = record_update env var (Const old_c) in
       let env' = record_update env var (Const new_c) in
       (e', s, env')
-  | ( Dup (Index 0),
+  | ( NodeCopy (Index 0),
       Elem ({ children = List [ OptionMap { opt = var; body } ]; _ } as elem) )
     ->
       let e' = Elem { elem with children = ListMap { lst = var; body } } in
@@ -73,7 +74,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
           match r with
           | Record _ -> [ r ]
           | Null -> []
-          | _ -> raise (Invalid_argument "Expected Record for Dup")
+          | _ -> raise (Invalid_argument "Expected Record for NodeCopy")
         in
         record_update env var (List l)
       in
@@ -82,7 +83,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update env var (List [ r; r ])
       in
       (e', s, env')
-  | Dup (Index 0), Elem ({ children = List [ child ]; _ } as elem) ->
+  | NodeCopy (Index 0), Elem ({ children = List [ child ]; _ } as elem) ->
       let var = fresh_var env in
       let vars = free_vars child in
       let e' =
@@ -101,7 +102,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update new_env var (List [ Record child_env; Record child_env ])
       in
       (e', s, env')
-  | Dup (Index i), Elem { children = ListMap { lst = var; _ }; _ } ->
+  | NodeCopy (Index i), Elem { children = ListMap { lst = var; _ }; _ } ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for duplication");
@@ -114,7 +115,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
              |> List.concat))
       in
       (e', s, env')
-  | Del (Index i), Elem ({ children = List children; _ } as elem) ->
+  | NodeDelete (Index i), Elem ({ children = List children; _ } as elem) ->
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for deletion");
       let var = fresh_var env in
@@ -139,7 +140,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update new_env' var Null
       in
       (e', s, env')
-  | Del (Index i), Elem { children = ListMap { lst = var; _ }; _ } ->
+  | NodeDelete (Index i), Elem { children = ListMap { lst = var; _ }; _ } ->
       let lst = List.assoc var env |> list_of_value in
       if i >= List.length lst then
         raise (Invalid_argument "Index out of bounds for deletion");
@@ -147,8 +148,8 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update env var (List (List.filteri (fun j _ -> j <> i) lst))
       in
       (e, Fun.id, env')
-  | Insert (Index i, new_tree), Elem ({ children = List children; _ } as elem)
-    ->
+  | ( NodeInsert (Index i, new_tree),
+      Elem ({ children = List children; _ } as elem) ) ->
       if i > List.length children then
         raise (Invalid_argument "Index out of bounds for insertion");
       let new_texpr = expr_of_tree new_tree in
@@ -168,7 +169,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
       let s env = record_update env var Null in
       let env' = record_update env var (Record []) in
       (e', s, env')
-  | SetAttr (key, attr), Elem ({ attrs; _ } as elem) -> (
+  | AttributeReplace (key, attr), Elem ({ attrs; _ } as elem) -> (
       match List.assoc_opt key attrs with
       | Some (Access var) ->
           let e' = e in

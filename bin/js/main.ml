@@ -51,6 +51,10 @@ let synthesize (tree_src : string) (steps : Demo.demo_step list) :
   Ok (Codegen.js_of_prog prog)
 
 let () =
+  (* Logs.set_reporter (Logs_browser.console_reporter ()); *)
+  Logs.set_reporter (Logs_browser.console_reporter ());
+  Logs.set_level (Some Logs.Debug);
+
   let open Js_of_ocaml in
   Js.export_all
     (object%js
@@ -68,6 +72,17 @@ let () =
              Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
 
        method synthesize tree_src steps =
+         (* Use JSON-encoded string of demo_step list *)
+         Logs.debug (fun m -> m "Steps: %s" steps);
+
+         let steps =
+           steps |> Yojson.Safe.from_string
+           |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                [%of_yojson: Demo.demo_step list])
+         in
+         Logs.info (fun m ->
+             m "Steps to synthesize: %s" ([%show: Demo.demo_step list] steps));
+
          synthesize tree_src steps |> function
          | Ok js_code ->
              Js.Unsafe.obj

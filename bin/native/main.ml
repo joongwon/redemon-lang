@@ -31,16 +31,16 @@ let counter_demo =
       steps =
         [
           {
-            action = { label = Label 1; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 1)) ];
+            action = { label = Label 1; action_type = Click; arg = None };
+            edits = [ ([ Index 0; Index 0 ], ConstReplace (Int 1)) ];
           };
           {
-            action = { label = Label 1; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 2)) ];
+            action = { label = Label 1; action_type = Click; arg = None };
+            edits = [ ([ Index 0; Index 0 ], ConstReplace (Int 2)) ];
           };
           {
-            action = { label = Label 2; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 1)) ];
+            action = { label = Label 2; action_type = Click; arg = None };
+            edits = [ ([ Index 0; Index 0 ], ConstReplace (Int 1)) ];
           };
         ];
     }

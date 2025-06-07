@@ -3,6 +3,27 @@ open Redemon_lang.Tree.Syntax
 open Redemon_lang.Tree
 open Redemon_lang
 
+let test_demo (name, input, expected) =
+  test_case name `Quick (fun () ->
+      let result =
+        input |> Demo.yojson_of_demo_step_list |> Yojson.Safe.to_string
+      in
+      check string name expected result)
+
+let demo_testcases =
+  let open Demo in
+  [
+    ( "increment",
+      [
+        {
+          action = { label = Label 0; action_type = Click; arg = None };
+          edits = [ ([ Index 0; Index 0 ], ConstReplace (String "1")) ];
+        };
+      ],
+      {|[{"action":{"label":["Label",0],"action_type":["Click"]},"edits":[[[["Index",0],["Index",0]],["ConstReplace",["String","1"]]]]}]|}
+    );
+  ]
+
 let test_parse_tree (name, input, expected) =
   test_case name `Quick (fun () ->
       try
@@ -33,27 +54,28 @@ let parse_tree_testcases =
         [] );
     ( "counter example",
       {|<div className="flex flex-col items-center">
-  <span className="font-semibold text-lg">
+  <div className="font-semibold text-lg">
     0
-  </span>
+  </div>
   <button
-    className="bg-stone-500 text-white px-2 py-1 rounded"
+    className="border-none bg-stone-500 text-white px-2 py-1 rounded"
     onClick={$1}
   >
     Increment
   </button>
-  </div>|},
+</div>|},
       tree_elem "div"
         [ ("className", AttrConst (String "flex flex-col items-center")) ]
         [
-          tree_elem "span"
+          tree_elem "div"
             [ ("className", AttrConst (String "font-semibold text-lg")) ]
             [ tree_const (String "0") ];
           tree_elem "button"
             [
               ( "className",
-                AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
-              );
+                AttrConst
+                  (String
+                     "border-none bg-stone-500 text-white px-2 py-1 rounded") );
               ("onClick", AttrFunc (Label 1));
             ]
             [ tree_const (String "Increment") ];
@@ -156,20 +178,21 @@ let counter_demo =
         [
           {
             action = { label = Label 1; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 1)) ];
+            edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 1)) ];
           };
           {
             action = { label = Label 1; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 2)) ];
+            edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 2)) ];
           };
           {
             action = { label = Label 2; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.Replace (Int 1)) ];
+            edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 1)) ];
           };
         ];
     }
 
 let abstract_demo_testcases =
+  let open Demo in
   [
     ( "counter demo",
       counter_demo,
@@ -227,84 +250,73 @@ let abstract_demo_testcases =
           init = [ (Var 1, Const (Int 0)) ];
           steps =
             [
-              ( { label = Label 1; action_type = Demo.Click; arg = None },
+              ( { label = Label 1; action_type = Click; arg = None },
                 [ (Var 1, Const (Int 1)) ] );
-              ( { label = Label 1; action_type = Demo.Click; arg = None },
+              ( { label = Label 1; action_type = Click; arg = None },
                 [ (Var 1, Const (Int 2)) ] );
-              ( { label = Label 2; action_type = Demo.Click; arg = None },
+              ( { label = Label 2; action_type = Click; arg = None },
                 [ (Var 1, Const (Int 1)) ] );
             ];
         } );
     ( "todo list demo",
-      Demo.
-        {
-          init =
-            tree_elem "div" []
-              [
-                tree_elem "input"
-                  [
-                    ("onChange", AttrFunc (Label 1));
-                    ("value", AttrConst (String ""));
-                  ]
-                  [];
-                tree_elem "button"
-                  [ ("onClick", AttrFunc (Label 2)) ]
-                  [ tree_const (String "Add Task") ];
-                tree_elem "ul" [] [];
-              ];
-          steps =
+      {
+        init =
+          tree_elem "div" []
             [
-              {
-                action =
-                  {
-                    label = Label 1;
-                    action_type = Demo.Input;
-                    arg = Some "Task 1";
-                  };
-                edits =
-                  [
-                    ([ Index 0 ], Demo.SetAttr ("value", Some (String "Task 1")));
-                  ];
-              };
-              {
-                action =
-                  { label = Label 2; action_type = Demo.Click; arg = None };
-                edits =
-                  [
-                    ( [ Index 2 ],
-                      Demo.Insert
-                        ( Index 0,
-                          tree_elem "li" [] [ tree_const (String "Task 1") ] )
-                    );
-                    ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
-                  ];
-              };
-              {
-                action =
-                  {
-                    label = Label 1;
-                    action_type = Demo.Input;
-                    arg = Some "New Task";
-                  };
-                edits =
-                  [
-                    ( [ Index 0 ],
-                      Demo.SetAttr ("value", Some (String "New Task")) );
-                  ];
-              };
-              {
-                action =
-                  { label = Label 2; action_type = Demo.Click; arg = None };
-                edits =
-                  [
-                    ([ Index 2 ], Demo.Dup (Index 0));
-                    ( [ Index 2; Index 1; Index 0 ],
-                      Demo.Replace (String "New Task") );
-                    ([ Index 0 ], Demo.SetAttr ("value", Some (String "")));
-                  ];
-              };
+              tree_elem "input"
+                [
+                  ("onChange", AttrFunc (Label 1));
+                  ("value", AttrConst (String ""));
+                ]
+                [];
+              tree_elem "button"
+                [ ("onClick", AttrFunc (Label 2)) ]
+                [ tree_const (String "Add Task") ];
+              tree_elem "ul" [] [];
             ];
-        },
+        steps =
+          [
+            {
+              action =
+                { label = Label 1; action_type = Input; arg = Some "Task 1" };
+              edits =
+                [
+                  ( [ Index 0 ],
+                    AttributeReplace ("value", Some (String "Task 1")) );
+                ];
+            };
+            {
+              action = { label = Label 2; action_type = Click; arg = None };
+              edits =
+                [
+                  ( [ Index 2 ],
+                    NodeInsert
+                      ( Index 0,
+                        tree_elem "li" [] [ tree_const (String "Task 1") ] ) );
+                  ([ Index 0 ], AttributeReplace ("value", Some (String "")));
+                ];
+            };
+            {
+              action =
+                { label = Label 1; action_type = Input; arg = Some "New Task" };
+              edits =
+                [
+                  ( [ Index 0 ],
+                    AttributeReplace ("value", Some (String "New Task")) );
+                ];
+            };
+            {
+              action = { label = Label 2; action_type = Click; arg = None };
+              edits =
+                [
+                  ([ Index 2 ], NodeCopy (Index 0));
+                  ( [ Index 2; Index 1; Index 0 ],
+                    ConstReplace (String "New Task") );
+                  ([ Index 0 ], AttributeReplace ("value", Some (String "")));
+                ];
+            };
+          ];
+      },
       Abstract.
         {
           sketch =
@@ -353,27 +365,19 @@ let abstract_demo_testcases =
           init = [ (Var 2, List []); (Var 1, Const (String "")) ];
           steps =
             [
-              ( {
-                  label = Label 1;
-                  action_type = Demo.Input;
-                  arg = Some "Task 1";
-                },
+              ( { label = Label 1; action_type = Input; arg = Some "Task 1" },
                 [ (Var 2, List []); (Var 1, Const (String "Task 1")) ] );
-              ( { label = Label 2; action_type = Demo.Click; arg = None },
+              ( { label = Label 2; action_type = Click; arg = None },
                 [
                   (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
                   (Var 1, Const (String ""));
                 ] );
-              ( {
-                  label = Label 1;
-                  action_type = Demo.Input;
-                  arg = Some "New Task";
-                },
+              ( { label = Label 1; action_type = Input; arg = Some "New Task" },
                 [
                   (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
                   (Var 1, Const (String "New Task"));
                 ] );
-              ( { label = Label 2; action_type = Demo.Click; arg = None },
+              ( { label = Label 2; action_type = Click; arg = None },
                 [
                   (Var 1, Const (String ""));
                   ( Var 2,
@@ -441,6 +445,7 @@ let test_synthesis () =
 let () =
   run "Redemon Lang Tests"
     [
+      ("Parse demo", List.map test_demo demo_testcases);
       ("Parse Tree", List.map test_parse_tree parse_tree_testcases);
       ( "Init Abstraction",
         List.map test_init_abstraction init_abstraction_testcases );

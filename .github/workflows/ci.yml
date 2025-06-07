@@ -29,6 +29,19 @@ jobs:
 
       - run: opam install . --deps-only --with-test
 
-      - run: opam exec -- dune build
+      - run: opam exec -- dune build --profile=prod
 
       - run: opam exec -- dune runtest
+
+      - name: Compress Jsoo output
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cp _build/default/bin/js/lang.bc.js lang.bc.js
+          tar czf lang.bc.js.tgz lang.bc.js
+
+      - name: Upload Jsoo output
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lang.bc.js
+          path: lang.bc.js.tgz

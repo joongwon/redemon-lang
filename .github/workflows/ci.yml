@@ -37,11 +37,17 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           cp _build/default/bin/js/lang.bc.js lang.bc.js
-          tar czf lang.bc.js.tgz lang.bc.js
+          tar cJf lang.bc.js.tar.xz lang.bc.js
 
       - name: Upload Jsoo output
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: lang.bc.js
-          path: lang.bc.js.tgz
+          path: lang.bc.js.tar.xz
+
+      - name: Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: lang.bc.js.tar.xz

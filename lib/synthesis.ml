@@ -129,6 +129,69 @@ let to_param_action (act : action) : parameterizable_action =
 
 type synthesized_function = string * value list
 
+(* value 변화도 부품 *)
+
+(** 두 값의 관계를 분석하여 관련성이 있는 부품(component) 후보들을 추출합니다.
+    - 정수: new - old, new / old 등
+    - 문자열: 추가된 접미사(suffix), 공통 부분 문자열 등
+    - 리스트: 추가/제거된 원소 등
+
+    @return value list: 추출된 부품 후보들의 리스트 *)
+let extract_related_components (old_val : value) (new_val : value) : value list
+    =
+  match (old_val, new_val) with
+  (* 1. 정수 관계 *)
+  | Const (Int i1), Const (Int i2) ->
+      let components = ref [] in
+      (* 덧셈/뺄셈 관계 *)
+      if i1 <> i2 then components := Const (Int (i2 - i1)) :: !components;
+      (* 곱셈/나눗셈 관계 *)
+      if i1 <> 0 && i2 mod i1 = 0 then
+        components := Const (Int (i2 / i1)) :: !components;
+      !components
+  (* 2. 문자열 관계 *)
+  | Const (String s1), Const (String s2) ->
+      let components = ref [] in
+      let len1 = String.length s1 in
+      let len2 = String.length s2 in
+      (* 접미사(suffix)가 추가된 경우 *)
+      (if len2 > len1 && String.starts_with ~prefix:s1 s2 then
+         let suffix = String.sub s2 len1 (len2 - len1) in
+         components := Const (String suffix) :: !components);
+      (* 접두사(prefix)가 추가된 경우 *)
+      (if len2 > len1 && String.ends_with ~suffix:s1 s2 then
+         let prefix = String.sub s2 0 (len2 - len1) in
+         components := Const (String prefix) :: !components);
+      !components
+  (* 3. 리스트 관계 *)
+  | List l1, List l2 ->
+      let components = ref [] in
+      let len1 = List.length l1 in
+      let len2 = List.length l2 in
+      (* 원소가 맨 앞에 추가(push)된 경우 *)
+      (if len2 = len1 + 1 then
+         match l2 with
+         | hd :: tl when equal_value (List tl) (List l1) ->
+             components := hd :: !components
+         | _ -> ());
+      (* 원소가 맨 뒤에 추가된 경우  *)
+      (if len2 = len1 + 1 then
+         let rec get_last_and_init = function
+           | [] -> None
+           | [ x ] -> Some ([], x)
+           | h :: t -> (
+               match get_last_and_init t with
+               | Some (init, last) -> Some (h :: init, last)
+               | None -> None)
+         in
+         match get_last_and_init l2 with
+         | Some (init, last) when equal_value (List init) (List l1) ->
+             components := last :: !components
+         | _ -> ());
+
+      !components
+  | _, _ -> []
+
 let synthesize (abstraction_data : abstraction) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
   let { init; steps; _ } = abstraction_data in
@@ -157,15 +220,20 @@ let synthesize (abstraction_data : abstraction) :
   List.iter
     (fun (_, r) -> List.iter (fun (_, v) -> add_const_to_components v) r)
     steps_chronological;
+
+  (* add default value *)
+  add_const_to_components (Const (Int 0));
+  add_const_to_components (Const (Int 1));
+  add_const_to_components (Const (Int (-1)));
+  add_const_to_components (Const (String ""));
+
   (* 모든 스텝의 값들 *)
-  let unique_components = List.sort_uniq compare !components in
 
   (* 중복 제거 및 정렬 *)
   (* Printf.printf "Unique components: %s\n" (String.concat "; " (List.map show_value unique_components)); *)
 
   (* 3. 관찰 결과 수집: (var_id, p_action, old_val, new_val, actual_action) *)
   (* 키: (var_id * p_action), 값: (old_val, new_val, action) 리스트 *)
-  Printf.printf "step 3\n";
   let observations = Hashtbl.create (List.length all_vars * 5) in
 
   let current_s = ref init in
@@ -196,7 +264,31 @@ let synthesize (abstraction_data : abstraction) :
       current_s := next_s)
     steps_chronological;
 
-  Printf.printf "step 4\n";
+  (* helper function *)
+  let add_const_to_components v =
+    match v with
+    | Const c -> components := Const c :: !components
+    | Record r_val -> components := Record r_val :: !components
+    | _ -> ()
+  in
+  let add_components_from_list l = List.iter add_const_to_components l in
+  (* step 2.5: value 변화 추출 *)
+  Hashtbl.iter
+    (fun _key transitions ->
+      List.iter
+        (fun (old_val, new_val, _) ->
+          let related_components = extract_related_components old_val new_val in
+          add_components_from_list related_components)
+          (* (MODIFIED) 반환된 리스트 전체를 부품에 추가 *)
+        transitions)
+    observations;
+
+  let unique_components = List.sort_uniq compare !components in
+
+  (* debug : print all components*)
+  (* Printf.printf "All components: %s\n"
+    (String.concat "; " (List.map show_value unique_components)); *)
+
   (* 4. 규칙 합성 *)
   let synthesized_rules = Hashtbl.create (Hashtbl.length observations) in
 
@@ -314,7 +406,7 @@ let synthesize (abstraction_data : abstraction) :
                   (* Printf.printf "  SUCCESS with %s %s for key (%s, %s)\n" op_name (String.concat " " (List.map show_value op_args)) (show_var v_id_checking) (show_parameterizable_action p_action_checking); *)
                   found_rule := Some (op_name, op_args)
               | None ->
-                  Printf.printf "  WARNING: op_args_opt was None for %s\n"
+                  Printf.eprintf "  WARNING: op_args_opt was None for %s\n"
                     op_name)
         candidate_ops;
 
@@ -509,18 +601,72 @@ let test () =
             [ (Var 1, Const (Int 1)) ] );
           ( { label = Label 2; action_type = Click; arg = None },
             [ (Var 1, Const (Int 0)) ] );
-        ]
-        (* 
-       init: {1:0}
-       1. Click 1 -> {1:1}  (old:0, new:1) -> plus 1
-       2. Click 1 -> {1:2}  (old:1, new:2) -> plus 1
-       3. Click 2 -> {1:1}  (old:2, new:1) -> minus 1
-       4. Click 2 -> {1:0}  (old:1, new:0) -> minus 1
-    *);
+        ];
     }
   in
   Printf.printf "Synthesizing for Counter Example:\n";
   let rules = synthesize counter_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+  let counter_abstraction2 =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 4)) ];
+      steps =
+        [
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 5)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 6)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 7)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 6)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 5)) ] );
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example 2:\n";
+  let rules = synthesize counter_abstraction2 in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+
+  let counter_abstraction3 =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 4)) ];
+      steps =
+        [
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 8)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 16)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 32)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 16)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 8)) ] );
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example 3:\n";
+  let rules = synthesize counter_abstraction3 in
   Hashtbl.iter
     (fun (var_id, p_action) (fname, args) ->
       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
@@ -543,17 +689,38 @@ let test () =
             [ (Var 10, Const (String "hello")) ] );
           ( { label = Label 5; action_type = Input; arg = Some "changed" },
             [ (Var 10, Const (String "changed")) ] );
-        ]
-        (* 
-       init: {10:"initial"}
-       1. Input(5,"changed") -> {10:"changed"} (old:"initial", new:"changed") -> set_to_input_string
-       2. Click 1 -> {10:"hello"} (old:"changed", new:"hello") -> set_to_const_string (Const (String "hello"))
-       3. Input(5,"world") -> {10:"world"} (old:"hello", new:"world") -> set_to_input_string
-    *);
+        ];
     }
   in
   Printf.printf "Synthesizing for String Input Example:\n";
   let rules_str = synthesize string_input_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules_str;
+  Printf.printf "\n";
+
+  let string_concat_abstraction =
+    {
+      sketch = expr_of_tree (Const (String "initial"));
+      init = [ (Var 10, Const (String "initial")) ];
+      steps =
+        [
+          ( { label = Label 5; action_type = Input; arg = Some "world" },
+            [ (Var 10, Const (String "initial world")) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 10, Const (String "hello")) ] );
+          ( { label = Label 5; action_type = Input; arg = Some "changed" },
+            [ (Var 10, Const (String "hello changed")) ] );
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for String concat Input Example:\n";
+  let rules_str = synthesize string_concat_abstraction in
   Hashtbl.iter
     (fun (var_id, p_action) (fname, args) ->
       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
@@ -574,12 +741,7 @@ let test () =
             [ (Var 20, List []) ] );
           ( { label = Label 50; action_type = Click; arg = None },
             [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
-        ]
-        (* 
-       init: {20:[]}
-       1. Click 50 -> {20:[Record [(1, Const (Int 1))]]} (old:[], new:[R1]) -> push (Record [(1, Const (Int 1))])
-       2. Click 100 -> {20:[]} (old:[R1], new:[]) -> pop
-    *);
+        ];
     }
   in
   Printf.printf "Synthesizing for List Push/Pop Example:\n";

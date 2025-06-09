@@ -1,6 +1,6 @@
 (library
  (name redemon_lang)
- (libraries redemon__tree)
+ (libraries redemon__tree cohttp-lwt-unix cohttp-async)
  (preprocess
   (pps ppx_yojson_conv ppx_deriving.show ppx_deriving.eq)))
 

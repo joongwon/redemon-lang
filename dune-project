@@ -22,4 +22,7 @@
   ppx_deriving
   yojson
   ppx_yojson_conv
+  cohttp-lwt-unix
+  cohttp-async
+  lwt_ssl
   (alcotest :with-test)))

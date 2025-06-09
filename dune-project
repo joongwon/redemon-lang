@@ -1,4 +1,5 @@
 (lang dune 3.17)
+
 (using menhir 3.0)
 
 (name redemon_lang)
@@ -15,8 +16,10 @@
   menhir
   dune
   base
+  logs
   js_of_ocaml
   js_of_ocaml-ppx
   ppx_deriving
   yojson
-  ppx_yojson_conv))
+  ppx_yojson_conv
+  (alcotest :with-test)))

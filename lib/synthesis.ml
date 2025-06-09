@@ -57,7 +57,7 @@ let push (v1 : value) (v2 : value) : value =
 let pop (v1 : value) : value =
   match v1 with
   | List [] -> raise (LengthError "Pop: Cannot pop from an empty list")
-  | List (r :: l) -> List l
+  | List (_ :: l) -> List l
   | _ -> raise (TypeError "Pop: Expected a list")
 
 (* interger function *)
@@ -123,13 +123,15 @@ let show_parameterizable_action (p_act : parameterizable_action) : string =
   | P_Input l -> Printf.sprintf "Input(%s)" (show_label l)
 
 let to_param_action (act : action) : parameterizable_action =
-  match act with l, Click, _ -> P_Click l | l, Input, _ -> P_Input l
+  match act with
+  | { label = l; action_type = Click; _ } -> P_Click l
+  | { label = l; action_type = Input; _ } -> P_Input l
 
 type synthesized_function = string * value list
 
 let synthesize (abstraction_data : abstraction) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
-  let { init; steps } = abstraction_data in
+  let { init; steps; _ } = abstraction_data in
   let steps_chronological = steps in
   (* 시간 순으로 스텝 정렬 *)
 
@@ -274,7 +276,7 @@ let synthesize (abstraction_data : abstraction) :
            List.for_all
              (fun (old_val, new_val, actual_act) ->
                match actual_act with
-               | _, Input, Some input_str -> (
+               | { action_type = Input; arg = Some input_str; _ } -> (
                    (* 실제 Input 액션에서 문자열 가져옴 *)
                    try
                      equal_value new_val (Const (String input_str))
@@ -333,19 +335,20 @@ let synthesize (abstraction_data : abstraction) :
 
   synthesized_rules
 
-type state = var
+type state = var [@@deriving show, eq]
 
 (* translate synthesie_rule to expr *)
 type synthesized_rule = {
   state : state;
   label : label;
-  event : event;
+  action_type : action_type;
   func : expr; (* Fun of ... *)
 }
+[@@deriving show, eq]
 
 let rec value_to_expr (v : value) : expr =
   match v with
-  | Tree t -> failwith "Tree cannot be converted to expr directly"
+  | Tree _ -> failwith "Tree cannot be converted to expr directly"
   | Const c -> Const c
   | Record r ->
       Record (List.map (fun (v_id, v_val) -> (v_id, value_to_expr v_val)) r)
@@ -356,13 +359,13 @@ let rec value_to_expr (v : value) : expr =
 let translate_synthesized_rule (var_id : var)
     (p_action : parameterizable_action) (fname : string) (args : value list) :
     synthesized_rule =
-  let label, event =
+  let label, action_type =
     match p_action with P_Click l -> (l, Click) | P_Input l -> (l, Input)
   in
   let args_expr = List.map value_to_expr args in
   let args = [ Access var_id ] @ args_expr in
   let func_expr = Fun { func = fname; args } in
-  { state = var_id; label; event; func = func_expr }
+  { state = var_id; label; action_type; func = func_expr }
 
 let translate_synthesized_rules
     (synthesized_rules :
@@ -492,12 +495,18 @@ let test () =
       init = [ (Var 1, Const (Int 0)) ];
       steps =
         [
-          ((Label 1, Click, None), [ (Var 1, Const (Int 1)) ]);
-          ((Label 1, Click, None), [ (Var 1, Const (Int 2)) ]);
-          ((Label 1, Click, None), [ (Var 1, Const (Int 3)) ]);
-          ((Label 2, Click, None), [ (Var 1, Const (Int 2)) ]);
-          ((Label 2, Click, None), [ (Var 1, Const (Int 1)) ]);
-          ((Label 2, Click, None), [ (Var 1, Const (Int 0)) ]);
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 1)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 2)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 3)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 2)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 1)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 0)) ] );
         ];
     }
   in
@@ -519,9 +528,11 @@ let test () =
       init = [ (Var 10, Const (String "initial")) ];
       steps =
         [
-          ((Label 5, Input, Some "world"), [ (Var 10, Const (String "world")) ]);
-          ((Label 1, Click, None), [ (Var 10, Const (String "hello")) ]);
-          ( (Label 5, Input, Some "changed"),
+          ( { label = Label 5; action_type = Input; arg = Some "world" },
+            [ (Var 10, Const (String "world")) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 10, Const (String "hello")) ] );
+          ( { label = Label 5; action_type = Input; arg = Some "changed" },
             [ (Var 10, Const (String "changed")) ] );
         ];
     }
@@ -544,10 +555,11 @@ let test () =
       init = [ (Var 10, Const (String "initial")) ];
       steps =
         [
-          ( (Label 5, Input, Some "world"),
+          ( { label = Label 5; action_type = Input; arg = Some "world" },
             [ (Var 10, Const (String "initial world")) ] );
-          ((Label 1, Click, None), [ (Var 10, Const (String "hello")) ]);
-          ( (Label 5, Input, Some "changed"),
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 10, Const (String "hello")) ] );
+          ( { label = Label 5; action_type = Input; arg = Some "changed" },
             [ (Var 10, Const (String "hello changed")) ] );
         ];
     }
@@ -570,8 +582,9 @@ let test () =
       init = [ (Var 20, List []) ];
       steps =
         [
-          ((Label 100, Click, None), [ (Var 20, List []) ]);
-          ( (Label 50, Click, None),
+          ( { label = Label 100; action_type = Click; arg = None },
+            [ (Var 20, List []) ] );
+          ( { label = Label 50; action_type = Click; arg = None },
             [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
         ];
     }

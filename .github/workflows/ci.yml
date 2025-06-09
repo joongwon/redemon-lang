@@ -1,0 +1,53 @@
+name: Builds, tests & co
+
+on:
+  - pull_request
+  - push
+
+permissions: read-all
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout tree
+        uses: actions/checkout@v4
+
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5
+
+      - run: opam install . --deps-only --with-test
+
+      - run: opam exec -- dune build --profile=prod
+
+      - run: opam exec -- dune runtest
+
+      - name: Compress Jsoo output
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cp _build/default/bin/js/lang.bc.js lang.bc.js
+          tar cJf lang.bc.js.tar.xz lang.bc.js
+
+      - name: Upload Jsoo output
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lang.bc.js
+          path: lang.bc.js.tar.xz
+
+      - name: Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: lang.bc.js.tar.xz

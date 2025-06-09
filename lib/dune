@@ -2,7 +2,7 @@
  (name redemon_lang)
  (libraries redemon__tree)
  (preprocess
-  (pps ppx_deriving.show ppx_deriving.eq)))
+  (pps ppx_yojson_conv ppx_deriving.show ppx_deriving.eq)))
 
 (env
  (dev

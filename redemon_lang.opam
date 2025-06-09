@@ -7,11 +7,13 @@ depends: [
   "menhir"
   "dune" {>= "3.17"}
   "base"
+  "logs"
   "js_of_ocaml"
   "js_of_ocaml-ppx"
   "ppx_deriving"
   "yojson"
   "ppx_yojson_conv"
+  "alcotest" {with-test}
   "odoc" {with-doc}
 ]
 build: [

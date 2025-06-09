@@ -197,7 +197,7 @@ let counter_demo =
         ];
     }
 
-let abstract_demo_testcases =
+let abstract_demo_single_testcases =
   let open Demo in
   [
     ( "counter demo",
@@ -404,6 +404,98 @@ let abstract_demo_testcases =
         } );
   ]
 
+let test_abstract_demo_multi (name, input, expected) =
+  test_case name `Quick (fun () ->
+      let result = Abstract.abstract_demo_multi input in
+      check
+        (testable Abstract.pp_abstraction_multi Abstract.equal_abstraction_multi)
+        name expected result)
+
+let abstract_demo_multi_testcases =
+  let open Demo in
+  [
+    ( "counter demo",
+      Demo.
+        {
+          init =
+            tree_elem "div" []
+              [
+                tree_elem "span" [] [ tree_const (Int 0) ];
+                tree_elem "span" [] [ tree_const (Int 0) ];
+                tree_elem "button"
+                  [ ("onClick", AttrFunc (Label 1)) ]
+                  [ tree_const (String "Increment 1") ];
+                tree_elem "button"
+                  [ ("onClick", AttrFunc (Label 2)) ]
+                  [ tree_const (String "Increment 2") ];
+              ];
+          timelines =
+            [
+              [
+                {
+                  action = { label = Label 1; action_type = Click; arg = None };
+                  edits = [ ([ Index 0; Index 0 ], ConstReplace (Int 1)) ];
+                };
+              ];
+              [
+                {
+                  action = { label = Label 2; action_type = Click; arg = None };
+                  edits = [ ([ Index 1; Index 0 ], ConstReplace (Int 2)) ];
+                };
+              ];
+            ];
+        },
+      Abstract.
+        {
+          sketch =
+            Elem
+              {
+                name = "div";
+                attrs = [];
+                children =
+                  List
+                    [
+                      Elem
+                        {
+                          name = "span";
+                          attrs = [];
+                          children = List [ Access (Var 1) ];
+                        };
+                      Elem
+                        {
+                          name = "span";
+                          attrs = [];
+                          children = List [ Access (Var 2) ];
+                        };
+                      Elem
+                        {
+                          name = "button";
+                          attrs = [ ("onClick", HandlerHole (Label 1)) ];
+                          children = List [ Const (String "Increment 1") ];
+                        };
+                      Elem
+                        {
+                          name = "button";
+                          attrs = [ ("onClick", HandlerHole (Label 2)) ];
+                          children = List [ Const (String "Increment 2") ];
+                        };
+                    ];
+              };
+          init = [ (Var 2, Const (Int 0)); (Var 1, Const (Int 0)) ];
+          timelines =
+            [
+              [
+                ( { label = Label 1; action_type = Click; arg = None },
+                  [ (Var 2, Const (Int 0)); (Var 1, Const (Int 1)) ] );
+              ];
+              [
+                ( { label = Label 2; action_type = Click; arg = None },
+                  [ (Var 2, Const (Int 2)); (Var 1, Const (Int 0)) ] );
+              ];
+            ];
+        } );
+  ]
+
 let test_synthesis () =
   let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
@@ -453,8 +545,10 @@ let () =
       ("Parse Tree", List.map test_parse_tree parse_tree_testcases);
       ( "Init Abstraction",
         List.map test_init_abstraction init_abstraction_testcases );
-      ( "Abstract Demo",
-        List.map test_abstract_demo_single abstract_demo_testcases );
+      ( "Abstract Demo Single",
+        List.map test_abstract_demo_single abstract_demo_single_testcases );
+      ( "Abstract Demo Multi",
+        List.map test_abstract_demo_multi abstract_demo_multi_testcases );
       ( "Synthesis",
         [ test_case "Synthesize Counter Demo" `Quick test_synthesis ] );
     ]

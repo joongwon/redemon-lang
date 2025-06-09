@@ -129,6 +129,29 @@ let to_param_action (act : action) : parameterizable_action =
 
 type synthesized_function = string * value list
 
+(* value 변화도 부품 *)
+let extract_delta_component (old_val : value) (new_val : value) : value option =
+  match (old_val, new_val) with
+  (* 1. 정수 변화량 *)
+  | Const (Int i1), Const (Int i2) -> Some (Const (Int (i2 - i1)))
+  (* 2. 문자열 변화량 (접미사 추가 감지) *)
+  | Const (String s1), Const (String s2) ->
+      let len1 = String.length s1 in
+      let len2 = String.length s2 in
+      if len2 > len1 && String.sub s2 0 len1 = s1 then
+        let suffix = String.sub s2 len1 (len2 - len1) in
+        Some (Const (String suffix))
+      else None
+  (* 3. 리스트 변화량 (Push 감지) *)
+  | List l1, List l2 ->
+      if List.length l2 = List.length l1 + 1 then
+        match l2 with
+        (* new_list = [hd] @ old_list 인 경우, hd를 부품으로 추가 *)
+        | hd :: tl when equal_value (List tl) (List l1) -> Some hd
+        | _ -> None
+      else None
+  | _, _ -> None
+
 let synthesize (abstraction_data : abstraction) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
   let { init; steps; _ } = abstraction_data in
@@ -201,6 +224,16 @@ let synthesize (abstraction_data : abstraction) :
       current_s := next_s)
     steps_chronological;
 
+  (* step 2.5: value 변화 추출 *)
+  Hashtbl.iter
+    (fun _key transitions ->
+      List.iter
+        (fun (old_val, new_val, _) ->
+          match extract_delta_component old_val new_val with
+          | Some delta_component -> add_const_to_components delta_component
+          | None -> ())
+        transitions)
+    observations;
   (* 4. 규칙 합성 *)
   let synthesized_rules = Hashtbl.create (Hashtbl.length observations) in
 
@@ -318,7 +351,7 @@ let synthesize (abstraction_data : abstraction) :
                   (* Printf.printf "  SUCCESS with %s %s for key (%s, %s)\n" op_name (String.concat " " (List.map show_value op_args)) (show_var v_id_checking) (show_parameterizable_action p_action_checking); *)
                   found_rule := Some (op_name, op_args)
               | None ->
-                  Printf.printf "  WARNING: op_args_opt was None for %s\n"
+                  Printf.eprintf "  WARNING: op_args_opt was None for %s\n"
                     op_name)
         candidate_ops;
 
@@ -518,6 +551,67 @@ let test () =
   in
   Printf.printf "Synthesizing for Counter Example:\n";
   let rules = synthesize counter_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+  let counter_abstraction2 =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 4)) ];
+      steps =
+        [
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 5)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 6)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 7)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 6)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 5)) ] );
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example 2:\n";
+  let rules = synthesize counter_abstraction2 in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+
+  let counter_abstraction3 =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 4)) ];
+      steps =
+        [
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 8)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 16)) ] );
+          ( { label = Label 1; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 32)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 16)) ] );
+          ( { label = Label 2; action_type = Click; arg = None },
+            [ (Var 1, Const (Int 8)) ] );
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example 3:\n";
+  let rules = synthesize counter_abstraction3 in
   Hashtbl.iter
     (fun (var_id, p_action) (fname, args) ->
       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"

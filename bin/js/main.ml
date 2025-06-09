@@ -66,10 +66,11 @@ let () =
          let steps =
            steps |> Yojson.Safe.from_string
            |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
-                [%of_yojson: Demo.demo_step list])
+                [%of_yojson: Demo.demo_step list list])
          in
          Logs.info (fun m ->
-             m "Steps to synthesize: %s" ([%show: Demo.demo_step list] steps));
+             m "Steps to synthesize: %s"
+               ([%show: Demo.demo_step list list] steps));
 
          synthesize tree_src steps |> function
          | Ok js_code ->

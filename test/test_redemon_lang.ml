@@ -499,8 +499,8 @@ let abstract_demo_multi_testcases =
 let test_synthesis_1 () =
   let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
-    abs |> Abstract.multi_to_singles |> List.hd |> Synthesis.synthesize
-    |> Synthesis.translate_synthesized_rules
+    (* abs |> Abstract.multi_to_singles |> List.hd |> Synthesis.synthesize *)
+    abs |> Synthesis.synthesize |> Synthesis.translate_synthesized_rules
   in
   let prog =
     Codegen.
@@ -571,8 +571,8 @@ let test_synthesis_2 () =
         }
   in
   let result =
-    abs |> Abstract.multi_to_singles |> List.hd |> Synthesis.synthesize
-    |> Synthesis.translate_synthesized_rules
+    (* abs |> Abstract.multi_to_singles |> List.hd |> Synthesis.synthesize *)
+    abs |> Synthesis.synthesize |> Synthesis.translate_synthesized_rules
   in
   let prog =
     Codegen.

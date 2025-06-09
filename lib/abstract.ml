@@ -54,6 +54,19 @@ let list_of_value (v : value) : value list =
   | List lst -> lst
   | _ -> raise (Invalid_argument "Expected List for list_of_value")
 
+(* find the index of i-th non-null node *)
+let convert_index ?(include_length = false) (Index i) (es : expr list)
+    (env : record) =
+  let indices =
+    es
+    |> List.mapi (fun j e -> match eval e env with Null -> None | _ -> Some j)
+    |> List.filter_map Fun.id
+  in
+  let indices =
+    if include_length then indices @ [ List.length es ] else indices
+  in
+  List.nth indices i
+
 let abstract_step (edit : edit) (e : expr) (env : record) :
     expr * (record -> record) * record =
   match (edit, e) with
@@ -120,9 +133,8 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
              |> List.concat))
       in
       (e', s, env')
-  | NodeDelete (Index i), Elem ({ children = List children; _ } as elem) ->
-      if i >= List.length children then
-        raise (Invalid_argument "Index out of bounds for deletion");
+  | NodeDelete i, Elem ({ children = List children; _ } as elem) ->
+      let i = convert_index i children env in
       let var = fresh_var env in
       let child = List.nth children i in
       let vars = free_vars child in
@@ -153,8 +165,8 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update env var (List (List.filteri (fun j _ -> j <> i) lst))
       in
       (e, Fun.id, env')
-  | ( NodeInsert (Index i, new_tree),
-      Elem ({ children = List children; _ } as elem) ) ->
+  | NodeInsert (i, new_tree), Elem ({ children = List children; _ } as elem) ->
+      let i = convert_index ~include_length:true i children env in
       if i > List.length children then
         raise (Invalid_argument "Index out of bounds for insertion");
       let new_texpr = expr_of_tree new_tree in

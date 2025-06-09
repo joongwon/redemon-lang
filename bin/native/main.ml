@@ -25,27 +25,30 @@ let counter_demo =
           ];
       timelines =
         [
-          {
-            action = { label = Label 1; action_type = Click; arg = None };
-            edits =
-              [
-                ([ Index 0; Index 0 ], ConstReplace (Int 1));
-                ([ Index 1; Index 0 ], ConstReplace (Int 2));
-              ];
-          };
-          {
-            action = { label = Label 1; action_type = Click; arg = None };
-            edits =
-              [
-                ([ Index 0; Index 0 ], ConstReplace (Int 2));
-                ([ Index 1; Index 0 ], ConstReplace (Int 4));
-              ];
-          };
+          [
+            {
+              action = { label = Label 1; action_type = Click; arg = None };
+              edits =
+                [
+                  ([ Index 0; Index 0 ], ConstReplace (Int 1));
+                  ([ Index 1; Index 0 ], ConstReplace (Int 2));
+                ];
+            };
+            {
+              action = { label = Label 1; action_type = Click; arg = None };
+              edits =
+                [
+                  ([ Index 0; Index 0 ], ConstReplace (Int 2));
+                  ([ Index 1; Index 0 ], ConstReplace (Int 4));
+                ];
+            };
+          ];
         ];
     }
 
 let () =
-  let abs = Abstract.abstract_demo counter_demo in
+  (* Synthesis.test (); *)
+  let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
   in

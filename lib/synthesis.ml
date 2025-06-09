@@ -163,7 +163,6 @@ let synthesize (abstraction_data : abstraction) :
 
   (* 3. 관찰 결과 수집: (var_id, p_action, old_val, new_val, actual_action) *)
   (* 키: (var_id * p_action), 값: (old_val, new_val, action) 리스트 *)
-  Printf.printf "step 3\n";
   let observations = Hashtbl.create (List.length all_vars * 5) in
 
   let current_s = ref init in
@@ -194,7 +193,6 @@ let synthesize (abstraction_data : abstraction) :
       current_s := next_s)
     steps_chronological;
 
-  Printf.printf "step 4\n";
   (* 4. 규칙 합성 *)
   let synthesized_rules = Hashtbl.create (Hashtbl.length observations) in
 
@@ -500,14 +498,7 @@ let test () =
           ((Label 2, Click, None), [ (Var 1, Const (Int 2)) ]);
           ((Label 2, Click, None), [ (Var 1, Const (Int 1)) ]);
           ((Label 2, Click, None), [ (Var 1, Const (Int 0)) ]);
-        ]
-        (* 
-       init: {1:0}
-       1. Click 1 -> {1:1}  (old:0, new:1) -> plus 1
-       2. Click 1 -> {1:2}  (old:1, new:2) -> plus 1
-       3. Click 2 -> {1:1}  (old:2, new:1) -> minus 1
-       4. Click 2 -> {1:0}  (old:1, new:0) -> minus 1
-    *);
+        ];
     }
   in
   Printf.printf "Synthesizing for Counter Example:\n";
@@ -532,17 +523,37 @@ let test () =
           ((Label 1, Click, None), [ (Var 10, Const (String "hello")) ]);
           ( (Label 5, Input, Some "changed"),
             [ (Var 10, Const (String "changed")) ] );
-        ]
-        (* 
-       init: {10:"initial"}
-       1. Input(5,"changed") -> {10:"changed"} (old:"initial", new:"changed") -> set_to_input_string
-       2. Click 1 -> {10:"hello"} (old:"changed", new:"hello") -> set_to_const_string (Const (String "hello"))
-       3. Input(5,"world") -> {10:"world"} (old:"hello", new:"world") -> set_to_input_string
-    *);
+        ];
     }
   in
   Printf.printf "Synthesizing for String Input Example:\n";
   let rules_str = synthesize string_input_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules_str;
+  Printf.printf "\n";
+
+  let string_concat_abstraction =
+    {
+      sketch = expr_of_tree (Const (String "initial"));
+      init = [ (Var 10, Const (String "initial")) ];
+      steps =
+        [
+          ( (Label 5, Input, Some "world"),
+            [ (Var 10, Const (String "initial world")) ] );
+          ((Label 1, Click, None), [ (Var 10, Const (String "hello")) ]);
+          ( (Label 5, Input, Some "changed"),
+            [ (Var 10, Const (String "hello changed")) ] );
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for String concat Input Example:\n";
+  let rules_str = synthesize string_concat_abstraction in
   Hashtbl.iter
     (fun (var_id, p_action) (fname, args) ->
       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
@@ -562,12 +573,7 @@ let test () =
           ((Label 100, Click, None), [ (Var 20, List []) ]);
           ( (Label 50, Click, None),
             [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
-        ]
-        (* 
-       init: {20:[]}
-       1. Click 50 -> {20:[Record [(1, Const (Int 1))]]} (old:[], new:[R1]) -> push (Record [(1, Const (Int 1))])
-       2. Click 100 -> {20:[]} (old:[R1], new:[]) -> pop
-    *);
+        ];
     }
   in
   Printf.printf "Synthesizing for List Push/Pop Example:\n";

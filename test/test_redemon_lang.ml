@@ -496,7 +496,7 @@ let abstract_demo_multi_testcases =
         } );
   ]
 
-let test_synthesis () =
+let test_synthesis_1 () =
   let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
     abs |> Abstract.multi_to_singles |> List.hd |> Synthesis.synthesize
@@ -538,6 +538,62 @@ let test_synthesis () =
     }
     prog
 
+let test_synthesis_2 () =
+  let abs =
+    Abstract.abstract_demo_multi
+      Demo.
+        {
+          init =
+            tree_elem "div"
+              [ ("className", AttrConst (String "flex flex-col items-center")) ]
+              [
+                tree_elem "span"
+                  [ ("className", AttrConst (String "font-semibold text-lg")) ]
+                  [ tree_const (Int 0) ];
+                tree_elem "button"
+                  [
+                    ( "className",
+                      AttrConst
+                        (String "bg-stone-500 text-white px-2 py-1 rounded") );
+                    ("onClick", AttrFunc (Label 1));
+                  ]
+                  [ tree_const (String "Increment") ];
+                tree_elem "button"
+                  [
+                    ( "className",
+                      AttrConst
+                        (String "bg-stone-500 text-white px-2 py-1 rounded") );
+                    ("onClick", AttrFunc (Label 2));
+                  ]
+                  [ tree_const (String "Decrement") ];
+              ];
+          timelines = [ [] ];
+        }
+  in
+  let result =
+    abs |> Abstract.multi_to_singles |> List.hd |> Synthesis.synthesize
+    |> Synthesis.translate_synthesized_rules
+  in
+  let prog =
+    Codegen.
+      {
+        view = abs.sketch;
+        data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
+        handlers = result;
+        states = abs.init;
+      }
+  in
+  check
+    (testable Codegen.pp_prog Codegen.equal_prog)
+    "Synthesis Test"
+    {
+      view = abs.sketch;
+      data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
+      handlers = [];
+      states = abs.init;
+    }
+    prog
+
 let () =
   run "Redemon Lang Tests"
     [
@@ -550,5 +606,8 @@ let () =
       ( "Abstract Demo Multi",
         List.map test_abstract_demo_multi abstract_demo_multi_testcases );
       ( "Synthesis",
-        [ test_case "Synthesize Counter Demo" `Quick test_synthesis ] );
+        [
+          test_case "Synthesize Counter Demo" `Quick test_synthesis_1;
+          test_case "Synthesize Empty Demo" `Quick test_synthesis_2;
+        ] );
     ]

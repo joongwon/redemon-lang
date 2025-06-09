@@ -337,8 +337,7 @@ let synthesize (abstraction_data : abstraction) :
 
   synthesized_rules
 
-type state = var
-[@@deriving show, eq]
+type state = var [@@deriving show, eq]
 
 (* translate synthesie_rule to expr *)
 type synthesized_rule = {

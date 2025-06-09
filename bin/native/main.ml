@@ -23,17 +23,23 @@ let counter_demo =
               ]
               [ tree_const (String "Increment") ];
           ];
-      steps =
+      timelines =
         [
           {
             action = { label = Label 1; action_type = Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], ConstReplace (Int 1));
-                      ([ Index 1; Index 0 ], ConstReplace (Int 2)) ];
+            edits =
+              [
+                ([ Index 0; Index 0 ], ConstReplace (Int 1));
+                ([ Index 1; Index 0 ], ConstReplace (Int 2));
+              ];
           };
           {
             action = { label = Label 1; action_type = Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], ConstReplace (Int 2));
-                      ([ Index 1; Index 0 ], ConstReplace (Int 4)) ];
+            edits =
+              [
+                ([ Index 0; Index 0 ], ConstReplace (Int 2));
+                ([ Index 1; Index 0 ], ConstReplace (Int 4));
+              ];
           };
         ];
     }

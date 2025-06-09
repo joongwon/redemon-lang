@@ -24,9 +24,9 @@ type action = {
 type demo_step = { action : action; edits : (path * edit) list }
 [@@deriving eq, show, yojson]
 
-type demo_step_list = demo_step list [@@deriving eq, show, yojson]
+type demo_timeline = demo_step list [@@deriving eq, show, yojson]
 
-type demo = { init : tree; steps : demo_step list }
+type demo = { init : tree; timelines : demo_timeline list }
 [@@deriving eq, show, yojson]
 
 (** semantics of edit *)

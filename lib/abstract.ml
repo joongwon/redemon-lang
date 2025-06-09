@@ -2,10 +2,15 @@ open Tree.Syntax
 open Demo
 open Texpr
 
-type abstraction = {
+type timeline = (action * record) list [@@deriving eq, show]
+
+type abstraction = { sketch : expr; init : record; steps : timeline }
+[@@deriving eq, show]
+
+type abstraction_multi = {
   sketch : expr;
   init : record;
-  steps : (action * record) list;
+  timelines : timeline list;
 }
 [@@deriving eq, show]
 
@@ -279,6 +284,7 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
   | _ ->
       raise (Invalid_argument "Unsupported expression or path for abstraction")
 
+(*
 let init_abstraction (init : tree) : abstraction =
   let sketch = expr_of_tree init in
   { sketch; init = []; steps = [] }
@@ -297,7 +303,43 @@ let add_step ({ sketch; init; steps } : abstraction)
   in
   let steps' = List.map (fun (a, e) -> (a, s e)) steps @ [ (action, env') ] in
   { sketch = sketch'; init = s init; steps = steps' }
+  *)
 
-let abstract_demo ({ init; steps } : demo) : abstraction =
-  let init = init_abstraction init in
-  List.fold_left add_step init steps
+let abstract_demo_multi ({ init; timelines } : demo) : abstraction_multi =
+  let add_edit (sketch, env, s) (path, edit) =
+    let sketch', s', env' = abstract_step_traverse path edit sketch env in
+    (sketch', env', Fun.compose s' s)
+  in
+  let add_step (sketch, init, steps, s) { action; edits } =
+    let last_env = match steps with [] -> init | (_, env) :: _ -> env in
+    let sketch', next_env, s' =
+      List.fold_left add_edit (sketch, last_env, Fun.id) edits
+    in
+    ( sketch',
+      s' init,
+      (action, next_env) :: List.map (fun (a, e) -> (a, s' e)) steps,
+      Fun.compose s' s )
+  in
+  let add_timeline (sketch, init, timelines) timeline =
+    let sketch', init', steps, s =
+      List.fold_left add_step (sketch, init, [], Fun.id) timeline
+    in
+    ( sketch',
+      init',
+      List.rev steps :: List.map (List.map (fun (a, e) -> (a, s e))) timelines
+    )
+  in
+  let sketch, init, timelines =
+    List.fold_left add_timeline (expr_of_tree init, [], []) timelines
+  in
+  { sketch; init; timelines = List.rev timelines }
+
+let abstract_demo init timeline : abstraction =
+  let { sketch; init = init'; timelines } =
+    abstract_demo_multi { init; timelines = [ timeline ] }
+  in
+  { sketch; init = init'; steps = List.hd timelines }
+
+let multi_to_singles ({ sketch; init; timelines } : abstraction_multi) :
+    abstraction list =
+  List.map (fun steps -> { sketch; init; steps }) timelines

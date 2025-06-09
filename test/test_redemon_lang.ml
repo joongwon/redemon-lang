@@ -2,12 +2,13 @@ open Alcotest
 open Redemon_lang.Tree.Syntax
 open Redemon_lang.Tree
 open Redemon_lang
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives
+
+type demo_step_list = Demo.demo_step list [@@deriving yojson]
 
 let test_demo (name, input, expected) =
   test_case name `Quick (fun () ->
-      let result =
-        input |> Demo.yojson_of_demo_step_list |> Yojson.Safe.to_string
-      in
+      let result = input |> yojson_of_demo_step_list |> Yojson.Safe.to_string in
       check string name expected result)
 
 let demo_testcases =
@@ -140,9 +141,12 @@ let init_abstraction_testcases =
         } );
   ]
 
-let test_abstract_demo (name, input, expected) =
+let test_abstract_demo_single (name, input, expected) =
   test_case name `Quick (fun () ->
-      let result = Abstract.abstract_demo input in
+      let result =
+        Abstract.abstract_demo_multi input
+        |> Abstract.multi_to_singles |> List.hd
+      in
       check
         (testable Abstract.pp_abstraction Abstract.equal_abstraction)
         name expected result)
@@ -174,20 +178,22 @@ let counter_demo =
               ]
               [ tree_const (String "Decrement") ];
           ];
-      steps =
+      timelines =
         [
-          {
-            action = { label = Label 1; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 1)) ];
-          };
-          {
-            action = { label = Label 1; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 2)) ];
-          };
-          {
-            action = { label = Label 2; action_type = Demo.Click; arg = None };
-            edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 1)) ];
-          };
+          [
+            {
+              action = { label = Label 1; action_type = Demo.Click; arg = None };
+              edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 1)) ];
+            };
+            {
+              action = { label = Label 1; action_type = Demo.Click; arg = None };
+              edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 2)) ];
+            };
+            {
+              action = { label = Label 2; action_type = Demo.Click; arg = None };
+              edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 1)) ];
+            };
+          ];
         ];
     }
 
@@ -274,47 +280,54 @@ let abstract_demo_testcases =
                 [ tree_const (String "Add Task") ];
               tree_elem "ul" [] [];
             ];
-        steps =
+        timelines =
           [
-            {
-              action =
-                { label = Label 1; action_type = Input; arg = Some "Task 1" };
-              edits =
-                [
-                  ( [ Index 0 ],
-                    AttributeReplace ("value", Some (String "Task 1")) );
-                ];
-            };
-            {
-              action = { label = Label 2; action_type = Click; arg = None };
-              edits =
-                [
-                  ( [ Index 2 ],
-                    NodeInsert
-                      ( Index 0,
-                        tree_elem "li" [] [ tree_const (String "Task 1") ] ) );
-                  ([ Index 0 ], AttributeReplace ("value", Some (String "")));
-                ];
-            };
-            {
-              action =
-                { label = Label 1; action_type = Input; arg = Some "New Task" };
-              edits =
-                [
-                  ( [ Index 0 ],
-                    AttributeReplace ("value", Some (String "New Task")) );
-                ];
-            };
-            {
-              action = { label = Label 2; action_type = Click; arg = None };
-              edits =
-                [
-                  ([ Index 2 ], NodeCopy (Index 0));
-                  ( [ Index 2; Index 1; Index 0 ],
-                    ConstReplace (String "New Task") );
-                  ([ Index 0 ], AttributeReplace ("value", Some (String "")));
-                ];
-            };
+            [
+              {
+                action =
+                  { label = Label 1; action_type = Input; arg = Some "Task 1" };
+                edits =
+                  [
+                    ( [ Index 0 ],
+                      AttributeReplace ("value", Some (String "Task 1")) );
+                  ];
+              };
+              {
+                action = { label = Label 2; action_type = Click; arg = None };
+                edits =
+                  [
+                    ( [ Index 2 ],
+                      NodeInsert
+                        ( Index 0,
+                          tree_elem "li" [] [ tree_const (String "Task 1") ] )
+                    );
+                    ([ Index 0 ], AttributeReplace ("value", Some (String "")));
+                  ];
+              };
+              {
+                action =
+                  {
+                    label = Label 1;
+                    action_type = Input;
+                    arg = Some "New Task";
+                  };
+                edits =
+                  [
+                    ( [ Index 0 ],
+                      AttributeReplace ("value", Some (String "New Task")) );
+                  ];
+              };
+              {
+                action = { label = Label 2; action_type = Click; arg = None };
+                edits =
+                  [
+                    ([ Index 2 ], NodeCopy (Index 0));
+                    ( [ Index 2; Index 1; Index 0 ],
+                      ConstReplace (String "New Task") );
+                    ([ Index 0 ], AttributeReplace ("value", Some (String "")));
+                  ];
+              };
+            ];
           ];
       },
       Abstract.
@@ -392,9 +405,10 @@ let abstract_demo_testcases =
   ]
 
 let test_synthesis () =
-  let abs = Abstract.abstract_demo counter_demo in
+  let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
-    Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
+    abs |> Abstract.multi_to_singles |> List.hd |> Synthesis.synthesize
+    |> Synthesis.translate_synthesized_rules
   in
   let prog =
     Codegen.
@@ -413,8 +427,20 @@ let test_synthesis () =
       data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
       handlers =
         [
-          { label = Label 2; action_type = Click; state = Var 1; func = Fun { func = "divide"; args = [ Access (Var 1); Const (Int 2) ] } };
-          { label = Label 1; action_type = Click; state = Var 1; func = Fun { func = "plus"; args = [ Access (Var 1); Const (Int 1) ] } };
+          {
+            label = Label 2;
+            action_type = Click;
+            state = Var 1;
+            func =
+              Fun { func = "divide"; args = [ Access (Var 1); Const (Int 2) ] };
+          };
+          {
+            label = Label 1;
+            action_type = Click;
+            state = Var 1;
+            func =
+              Fun { func = "plus"; args = [ Access (Var 1); Const (Int 1) ] };
+          };
         ];
       states = abs.init;
     }
@@ -427,7 +453,8 @@ let () =
       ("Parse Tree", List.map test_parse_tree parse_tree_testcases);
       ( "Init Abstraction",
         List.map test_init_abstraction init_abstraction_testcases );
-      ("Abstract Demo", List.map test_abstract_demo abstract_demo_testcases);
+      ( "Abstract Demo",
+        List.map test_abstract_demo_single abstract_demo_testcases );
       ( "Synthesis",
         [ test_case "Synthesize Counter Demo" `Quick test_synthesis ] );
     ]

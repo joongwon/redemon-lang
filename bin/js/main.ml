@@ -18,21 +18,12 @@ let parse_program_str (program_str : string) : (Syntax.tree, string) Result.t =
   | exception Parser.Error ->
       Error (Printf.sprintf "%s: syntax error" (position lexbuf))
 
-let pairs_to_assoc_list pairs =
-  List.fold_left
-    ~f:(fun acc (k, v) ->
-      match Stdlib.List.assoc_opt k acc with
-      | Some existing_v ->
-          (k, existing_v @ [ v ]) :: Stdlib.List.remove_assoc k acc
-      | None -> (k, [ v ]) :: acc)
-    ~init:[] pairs
-
-let synthesize (tree_src : string) (steps : Demo.demo_step list) :
+let synthesize (tree_src : string) (timelines : Demo.demo_timeline list) :
     (string, string) Result.t =
   let ( let* ) x f = Result.bind x ~f in
   let* tree = parse_program_str tree_src in
-  let demo = Demo.{ init = tree; steps } in
-  let abs = Abstract.abstract_demo demo in
+  let demo = Demo.{ init = tree; timelines } in
+  let abs = Abstract.abstract_demo_multi demo in
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
   in

@@ -1,3 +1,5 @@
 (test
  (name test_redemon_lang)
- (libraries alcotest redemon_lang))
+ (libraries alcotest redemon_lang)
+ (preprocess
+  (pps ppx_yojson_conv)))

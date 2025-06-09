@@ -130,27 +130,67 @@ let to_param_action (act : action) : parameterizable_action =
 type synthesized_function = string * value list
 
 (* value 변화도 부품 *)
-let extract_delta_component (old_val : value) (new_val : value) : value option =
+
+(** 두 값의 관계를 분석하여 관련성이 있는 부품(component) 후보들을 추출합니다.
+    - 정수: new - old, new / old 등
+    - 문자열: 추가된 접미사(suffix), 공통 부분 문자열 등
+    - 리스트: 추가/제거된 원소 등
+
+    @return value list: 추출된 부품 후보들의 리스트 *)
+let extract_related_components (old_val : value) (new_val : value) : value list
+    =
   match (old_val, new_val) with
-  (* 1. 정수 변화량 *)
-  | Const (Int i1), Const (Int i2) -> Some (Const (Int (i2 - i1)))
-  (* 2. 문자열 변화량 (접미사 추가 감지) *)
+  (* 1. 정수 관계 *)
+  | Const (Int i1), Const (Int i2) ->
+      let components = ref [] in
+      (* 덧셈/뺄셈 관계 *)
+      if i1 <> i2 then components := Const (Int (i2 - i1)) :: !components;
+      (* 곱셈/나눗셈 관계 *)
+      if i1 <> 0 && i2 mod i1 = 0 then
+        components := Const (Int (i2 / i1)) :: !components;
+      !components
+  (* 2. 문자열 관계 *)
   | Const (String s1), Const (String s2) ->
+      let components = ref [] in
       let len1 = String.length s1 in
       let len2 = String.length s2 in
-      if len2 > len1 && String.sub s2 0 len1 = s1 then
-        let suffix = String.sub s2 len1 (len2 - len1) in
-        Some (Const (String suffix))
-      else None
-  (* 3. 리스트 변화량 (Push 감지) *)
+      (* 접미사(suffix)가 추가된 경우 *)
+      (if len2 > len1 && String.starts_with ~prefix:s1 s2 then
+         let suffix = String.sub s2 len1 (len2 - len1) in
+         components := Const (String suffix) :: !components);
+      (* 접두사(prefix)가 추가된 경우 *)
+      (if len2 > len1 && String.ends_with ~suffix:s1 s2 then
+         let prefix = String.sub s2 0 (len2 - len1) in
+         components := Const (String prefix) :: !components);
+      !components
+  (* 3. 리스트 관계 *)
   | List l1, List l2 ->
-      if List.length l2 = List.length l1 + 1 then
-        match l2 with
-        (* new_list = [hd] @ old_list 인 경우, hd를 부품으로 추가 *)
-        | hd :: tl when equal_value (List tl) (List l1) -> Some hd
-        | _ -> None
-      else None
-  | _, _ -> None
+      let components = ref [] in
+      let len1 = List.length l1 in
+      let len2 = List.length l2 in
+      (* 원소가 맨 앞에 추가(push)된 경우 *)
+      (if len2 = len1 + 1 then
+         match l2 with
+         | hd :: tl when equal_value (List tl) (List l1) ->
+             components := hd :: !components
+         | _ -> ());
+      (* 원소가 맨 뒤에 추가된 경우  *)
+      (if len2 = len1 + 1 then
+         let rec get_last_and_init = function
+           | [] -> None
+           | [ x ] -> Some ([], x)
+           | h :: t -> (
+               match get_last_and_init t with
+               | Some (init, last) -> Some (h :: init, last)
+               | None -> None)
+         in
+         match get_last_and_init l2 with
+         | Some (init, last) when equal_value (List init) (List l1) ->
+             components := last :: !components
+         | _ -> ());
+
+      !components
+  | _, _ -> []
 
 let synthesize (abstraction_data : abstraction) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
@@ -186,8 +226,8 @@ let synthesize (abstraction_data : abstraction) :
   add_const_to_components (Const (Int 1));
   add_const_to_components (Const (Int (-1)));
   add_const_to_components (Const (String ""));
+
   (* 모든 스텝의 값들 *)
-  let unique_components = List.sort_uniq compare !components in
 
   (* 중복 제거 및 정렬 *)
   (* Printf.printf "Unique components: %s\n" (String.concat "; " (List.map show_value unique_components)); *)
@@ -224,16 +264,31 @@ let synthesize (abstraction_data : abstraction) :
       current_s := next_s)
     steps_chronological;
 
+  (* helper function *)
+  let add_const_to_components v =
+    match v with
+    | Const c -> components := Const c :: !components
+    | Record r_val -> components := Record r_val :: !components
+    | _ -> ()
+  in
+  let add_components_from_list l = List.iter add_const_to_components l in
   (* step 2.5: value 변화 추출 *)
   Hashtbl.iter
     (fun _key transitions ->
       List.iter
         (fun (old_val, new_val, _) ->
-          match extract_delta_component old_val new_val with
-          | Some delta_component -> add_const_to_components delta_component
-          | None -> ())
+          let related_components = extract_related_components old_val new_val in
+          add_components_from_list related_components)
+          (* (MODIFIED) 반환된 리스트 전체를 부품에 추가 *)
         transitions)
     observations;
+
+  let unique_components = List.sort_uniq compare !components in
+
+  (* debug : print all components*)
+  (* Printf.printf "All components: %s\n"
+    (String.concat "; " (List.map show_value unique_components)); *)
+
   (* 4. 규칙 합성 *)
   let synthesized_rules = Hashtbl.create (Hashtbl.length observations) in
 

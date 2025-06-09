@@ -157,6 +157,12 @@ let synthesize (abstraction_data : abstraction) :
   List.iter
     (fun (_, r) -> List.iter (fun (_, v) -> add_const_to_components v) r)
     steps_chronological;
+
+  (* add default value *)
+  add_const_to_components (Const (Int 0));
+  add_const_to_components (Const (Int 1));
+  add_const_to_components (Const (Int (-1)));
+  add_const_to_components (Const (String ""));
   (* 모든 스텝의 값들 *)
   let unique_components = List.sort_uniq compare !components in
 

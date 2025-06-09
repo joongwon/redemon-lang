@@ -391,21 +391,10 @@ let abstract_demo_testcases =
         } );
   ]
 
-let pairs_to_assoc_list pairs =
-  List.fold_left
-    (fun acc (k, v) ->
-      match List.assoc_opt k acc with
-      | Some existing_v -> (k, existing_v @ [ v ]) :: List.remove_assoc k acc
-      | None -> (k, [ v ]) :: acc)
-    [] pairs
-
 let test_synthesis () =
   let abs = Abstract.abstract_demo counter_demo in
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
-    |> List.map (fun Synthesis.{ state; label; action_type; func } ->
-           ((label, action_type), (state, func)))
-    |> pairs_to_assoc_list
   in
   let prog =
     Codegen.
@@ -424,19 +413,8 @@ let test_synthesis () =
       data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
       handlers =
         [
-          ( (Label 1, Demo.Click),
-            [
-              ( Var 1,
-                Fun { func = "plus"; args = [ Access (Var 1); Const (Int 1) ] }
-              );
-            ] );
-          ( (Label 2, Demo.Click),
-            [
-              ( Var 1,
-                Fun
-                  { func = "divide"; args = [ Access (Var 1); Const (Int 2) ] }
-              );
-            ] );
+          { label = Label 2; action_type = Click; state = Var 1; func = Fun { func = "divide"; args = [ Access (Var 1); Const (Int 2) ] } };
+          { label = Label 1; action_type = Click; state = Var 1; func = Fun { func = "plus"; args = [ Access (Var 1); Const (Int 1) ] } };
         ];
       states = abs.init;
     }

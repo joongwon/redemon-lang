@@ -35,9 +35,6 @@ let synthesize (tree_src : string) (steps : Demo.demo_step list) :
   let abs = Abstract.abstract_demo demo in
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
-    |> List.map ~f:(fun Synthesis.{ state; label; action_type; func } ->
-           ((label, action_type), (state, func)))
-    |> pairs_to_assoc_list
   in
   let prog =
     Codegen.

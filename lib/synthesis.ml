@@ -338,6 +338,7 @@ let synthesize (abstraction_data : abstraction) :
   synthesized_rules
 
 type state = var
+[@@deriving show, eq]
 
 (* translate synthesie_rule to expr *)
 type synthesized_rule = {
@@ -346,6 +347,7 @@ type synthesized_rule = {
   action_type : action_type;
   func : expr; (* Fun of ... *)
 }
+[@@deriving show, eq]
 
 let rec value_to_expr (v : value) : expr =
   match v with

@@ -131,12 +131,6 @@ type synthesized_function = string * value list
 
 (* value 변화도 부품 *)
 
-(** 두 값의 관계를 분석하여 관련성이 있는 부품(component) 후보들을 추출합니다.
-    - 정수: new - old, new / old 등
-    - 문자열: 추가된 접미사(suffix), 공통 부분 문자열 등
-    - 리스트: 추가/제거된 원소 등
-
-    @return value list: 추출된 부품 후보들의 리스트 *)
 let extract_related_components (old_val : value) (new_val : value) : value list
     =
   match (old_val, new_val) with
@@ -192,77 +186,74 @@ let extract_related_components (old_val : value) (new_val : value) : value list
       !components
   | _, _ -> []
 
-let synthesize (abstraction_data : abstraction) :
+let synthesize (abstraction_data : abstraction_multi) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
-  let { init; steps; _ } = abstraction_data in
-  let steps_chronological = steps in
-  (* 시간 순으로 스텝 정렬 *)
+      let { init; timelines; _ } = abstraction_data in
 
-  (* 1. 모든 고유 변수 수집 *)
-  let all_vars =
-    List.sort_uniq compare
-      (List.map fst init
-      @ List.flatten
-          (List.map (fun (_, r) -> List.map fst r) steps_chronological))
-  in
-  let all_vars = List.sort_uniq compare all_vars in
-  (* 중복 제거 및 정렬 *)
-
+  (* 1. 모든 고유 변수 및 컴포넌트(상수) 수집 *)
+  let all_vars_list = ref (List.map fst init) in
   let components = ref [] in
+
   let add_const_to_components v =
     match v with
-    | Const c -> components := Const c :: !components
-    | Record r_val -> components := Record r_val :: !components
+    | Const c ->
+        if not (List.mem (Const c) !components) then
+          components := Const c :: !components
+    | Record r_val ->
+        if not (List.mem (Record r_val) !components) then
+          components := Record r_val :: !components
     | _ -> ()
   in
+
   List.iter (fun (_, v) -> add_const_to_components v) init;
-  (* 초기 상태의 값들 *)
+
   List.iter
-    (fun (_, r) -> List.iter (fun (_, v) -> add_const_to_components v) r)
-    steps_chronological;
+    (fun timeline ->
+      List.iter
+        (fun (_, r) ->
+          all_vars_list := List.map fst r @ !all_vars_list;
+          List.iter (fun (_, v) -> add_const_to_components v) r)
+        timeline)
+    timelines;
+
+  let all_vars = List.sort_uniq compare !all_vars_list in
+
+  (* 모든 타임라인에서 관찰 결과 수집 *)
+  (* key: (var_id, p_action), value: (old_val, new_val, actual_action) list *)
+  let observations = Hashtbl.create (List.length all_vars * 5) in
+
+  (* 각 타임라인은 독립적으로 초기 상태(init)에서 시작 *)
+  List.iter
+    (fun timeline ->
+      let current_s = ref init in
+      List.iter
+        (fun (act, next_s) ->
+          let prev_s = !current_s in
+          let p_act = to_param_action act in
+          List.iter
+            (fun v_id ->
+              try
+                let old_val = lookup_val v_id prev_s in
+                let new_val = lookup_val v_id next_s in
+                if not (equal_value old_val new_val) then
+                  let key = (v_id, p_act) in
+                  let existing_obs =
+                    try Hashtbl.find observations key with Not_found -> []
+                  in
+                  (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
+                  Hashtbl.replace observations key
+                    ((old_val, new_val, act) :: existing_obs)
+              with NotFound _ -> ())
+            all_vars;
+          current_s := next_s)
+        timeline)
+    timelines;
 
   (* add default value *)
   add_const_to_components (Const (Int 0));
   add_const_to_components (Const (Int 1));
   add_const_to_components (Const (Int (-1)));
   add_const_to_components (Const (String ""));
-
-  (* 모든 스텝의 값들 *)
-
-  (* 중복 제거 및 정렬 *)
-  (* Printf.printf "Unique components: %s\n" (String.concat "; " (List.map show_value unique_components)); *)
-
-  (* 3. 관찰 결과 수집: (var_id, p_action, old_val, new_val, actual_action) *)
-  (* 키: (var_id * p_action), 값: (old_val, new_val, action) 리스트 *)
-  let observations = Hashtbl.create (List.length all_vars * 5) in
-
-  let current_s = ref init in
-  (* 현재 상태, 초기 상태로 시작 *)
-  List.iter
-    (fun (act, next_s) ->
-      let prev_s = !current_s in
-      let p_act = to_param_action act in
-      (* 액션을 매개변수화된 액션으로 변환 *)
-      List.iter
-        (fun v_id ->
-          try
-            let old_val = lookup_val v_id prev_s in
-            (* 이전 상태에서 변수 값 조회 *)
-            let new_val = lookup_val v_id next_s in
-            (* 다음 상태에서 변수 값 조회 *)
-            if not (equal_value old_val new_val) then
-              (* 값이 변경된 경우에만 *)
-              let key = (v_id, p_act) in
-              let existing_obs =
-                try Hashtbl.find observations key with Not_found -> []
-              in
-              Hashtbl.replace observations key
-                ((old_val, new_val, act) :: existing_obs)
-            (* 관찰 결과 추가 *)
-          with NotFound _ -> () (* 변수가 상태 중 하나에 없거나 추가/제거된 경우 무시 *))
-        all_vars;
-      current_s := next_s)
-    steps_chronological;
 
   (* helper function *)
   let add_const_to_components v =
@@ -587,20 +578,22 @@ let test () =
     {
       sketch = expr_of_tree (Const (Int 0));
       init = [ (Var 1, Const (Int 0)) ];
-      steps =
+      timelines =
         [
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 1)) ] );
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 2)) ] );
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 3)) ] );
-          ( { label = Label 2; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 2)) ] );
-          ( { label = Label 2; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 1)) ] );
-          ( { label = Label 2; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 0)) ] );
+          [
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 1)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 2)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 3)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 2)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 1)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 0)) ] );
+          ];
         ];
     }
   in
@@ -619,18 +612,20 @@ let test () =
     {
       sketch = expr_of_tree (Const (Int 0));
       init = [ (Var 1, Const (Int 4)) ];
-      steps =
+      timelines =
         [
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 5)) ] );
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 6)) ] );
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 7)) ] );
-          ( { label = Label 2; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 6)) ] );
-          ( { label = Label 2; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 5)) ] );
+          [
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 5)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 6)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 7)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 6)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 5)) ] );
+          ];
         ];
     }
   in
@@ -650,18 +645,20 @@ let test () =
     {
       sketch = expr_of_tree (Const (Int 0));
       init = [ (Var 1, Const (Int 4)) ];
-      steps =
+      timelines =
         [
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 8)) ] );
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 16)) ] );
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 32)) ] );
-          ( { label = Label 2; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 16)) ] );
-          ( { label = Label 2; action_type = Click; arg = None },
-            [ (Var 1, Const (Int 8)) ] );
+          [
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 8)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 16)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 32)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 16)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 8)) ] );
+          ];
         ];
     }
   in
@@ -677,18 +674,55 @@ let test () =
     rules;
   Printf.printf "\n";
 
+  let counter_abstraction_timeline =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 4)) ];
+      timelines =
+        [
+          [
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 8)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 16)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 32)) ] );
+          ];
+          [
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 2)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 1)) ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example with timelines:\n";
+  let rules = synthesize counter_abstraction_timeline in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+
   let string_input_abstraction =
     {
       sketch = expr_of_tree (Const (String "initial"));
       init = [ (Var 10, Const (String "initial")) ];
-      steps =
+      timelines =
         [
-          ( { label = Label 5; action_type = Input; arg = Some "world" },
-            [ (Var 10, Const (String "world")) ] );
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 10, Const (String "hello")) ] );
-          ( { label = Label 5; action_type = Input; arg = Some "changed" },
-            [ (Var 10, Const (String "changed")) ] );
+          [
+            ( { label = Label 5; action_type = Input; arg = Some "world" },
+              [ (Var 10, Const (String "world")) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 10, Const (String "hello")) ] );
+            ( { label = Label 5; action_type = Input; arg = Some "changed" },
+              [ (Var 10, Const (String "changed")) ] );
+          ];
         ];
     }
   in
@@ -708,14 +742,16 @@ let test () =
     {
       sketch = expr_of_tree (Const (String "initial"));
       init = [ (Var 10, Const (String "initial")) ];
-      steps =
+      timelines =
         [
-          ( { label = Label 5; action_type = Input; arg = Some "world" },
-            [ (Var 10, Const (String "initial world")) ] );
-          ( { label = Label 1; action_type = Click; arg = None },
-            [ (Var 10, Const (String "hello")) ] );
-          ( { label = Label 5; action_type = Input; arg = Some "changed" },
-            [ (Var 10, Const (String "hello changed")) ] );
+          [
+            ( { label = Label 5; action_type = Input; arg = Some "world" },
+              [ (Var 10, Const (String "initial world")) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 10, Const (String "hello")) ] );
+            ( { label = Label 5; action_type = Input; arg = Some "changed" },
+              [ (Var 10, Const (String "hello changed")) ] );
+          ];
         ];
     }
   in
@@ -735,12 +771,14 @@ let test () =
     {
       sketch = expr_of_tree (Const (Int 0));
       init = [ (Var 20, List []) ];
-      steps =
+      timelines =
         [
-          ( { label = Label 100; action_type = Click; arg = None },
-            [ (Var 20, List []) ] );
-          ( { label = Label 50; action_type = Click; arg = None },
-            [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
+          [
+            ( { label = Label 100; action_type = Click; arg = None },
+              [ (Var 20, List []) ] );
+            ( { label = Label 50; action_type = Click; arg = None },
+              [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
+          ];
         ];
     }
   in

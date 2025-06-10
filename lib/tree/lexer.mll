@@ -6,14 +6,17 @@ exception LexingError of string * Lexing.position
 }
 
 let word = ['a'-'z' 'A'-'Z' '0'-'9']+
+let int = ['+' '-']? ['0'-'9']+
+let string_content = [^'"' '\n' '\\']*
 
 rule token = parse
-  | "<" (['a'-'z' '0'-'9']+ as tagname) { props tagname [] lexbuf }
-  | "</" (['a'-'z' '0'-'9']+ as tagname) ">" { CLOSE tagname }
-  | ['\n'] [' ' '\t']* { Lexing.new_line lexbuf; token lexbuf }
+  | "<" (word as tagname) { props tagname [] lexbuf }
+  | "</" (word as tagname) ">" { CLOSE tagname }
+  | ['\n'] { Lexing.new_line lexbuf; token lexbuf }
+  | [' ' '\t']* { token lexbuf }
   | [' ' '\t']* (([^'{' '<' '\n']*[^'{' '<' ' ' '\t' '\n']) as text) { TEXT text }
-  | "{\"" ([^'"' '\n']+ as value) "\"}" { CONST (String value) }
-  | "{" (['0'-'9']+ as value) "}" { CONST (Int (int_of_string value)) }
+  | "{\"" (string_content as value) "\"}" { CONST (String value) }
+  | "{" (int as value) "}" { CONST (Int (int_of_string value)) }
   (*
   | "{true}" { CONST (Bool true) }
   | "{false}" { CONST (Bool false) }
@@ -26,8 +29,8 @@ and props tagname acc = parse
   | [' ' '\t'] { props tagname acc lexbuf }
   | ">" { OPEN (tagname, List.rev acc) }
   | "/>" { SELF (tagname, List.rev acc) }
-  | (word as name) "=\"" ([^'"' '\n']+ as value) '"' { props tagname ((name, AttrConst (String value)) :: acc) lexbuf }
-  | (word as name) "={" (['0'-'9']+ as value) "}" { props tagname ((name, AttrConst (Int (int_of_string value))) :: acc) lexbuf }
+  | (word as name) "=\"" (string_content as value) '"' { props tagname ((name, AttrConst (String value)) :: acc) lexbuf }
+  | (word as name) "={" (int as value) "}" { props tagname ((name, AttrConst (Int (int_of_string value))) :: acc) lexbuf }
   (*
   | (word as name) "={true}" { props tagname ((name, AttrConst (Bool true)) :: acc) lexbuf }
   | (word as name) "={false}" { props tagname ((name, AttrConst (Bool false)) :: acc) lexbuf }

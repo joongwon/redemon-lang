@@ -4,6 +4,7 @@ open Demo
 open Abstract
 open Lwt.Syntax
 open Api
+open Str
 
 (* list function:
   map, concat, length
@@ -515,6 +516,27 @@ let rec value_of_yojson (json : Yojson.Basic.t) : value =
   | `Null -> Null
   | `Bool _ -> failwith "Boolean to 'value' conversion is not implemented."
 
+let is_var_ref_yojson (arg_json : Yojson.Basic.t) (var_id : var) : bool =
+  let (Var target_id) = var_id in
+  let target_id_str = string_of_int target_id in
+
+  try
+    match arg_json with
+    (* LLM이 숫자로 반환한 경우: 1 *)
+    | `Int n -> false
+    (* LLM이 문자열로 반환한 경우: "1", "Var(1)", "(Texpr.Var 1)" 등 *)
+    | `String s ->
+        let s = String.trim s in
+        (* "Var(1)" 또는 "(Texpr.Var 1)" 패턴 *)
+        if
+          Str.string_match (Str.regexp "Var(\\([0-9]+\\))") s 0
+          || Str.string_match (Str.regexp "(Texpr.Var \\([0-9]+\\))") s 0
+        then int_of_string (Str.matched_group 1 s) = target_id
+        (* 그냥 숫자 문자열 "1" *)
+          else s = target_id_str
+    | _ -> false
+  with _ -> false
+
 let synthesize_with_llm (abstraction_data : abstraction_multi) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
   let { init; timelines } = abstraction_data in
@@ -579,6 +601,7 @@ let synthesize_with_llm (abstraction_data : abstraction_multi) :
 
   (* 2. 각 관찰에 대해 Gemini API 호출 및 결과 파싱 *)
   let process_observation (key, transitions_rev) =
+    let var_id_being_updated, _ = key in
     let transitions = List.rev transitions_rev in
     (* (MODIFIED) Gemini용 프롬프트 포맷터 호출 *)
     let prompt = format_prompt_for_gemini key transitions in
@@ -602,7 +625,15 @@ let synthesize_with_llm (abstraction_data : abstraction_multi) :
                try
                  let args =
                    if response.func_name = "set_to_input_string" then []
-                   else List.map value_of_yojson response.args
+                   else
+                     let args_from_llm = response.args in
+                     let final_args_str =
+                       List.filter
+                         (fun arg_str ->
+                           not (is_var_ref_yojson arg_str var_id_being_updated))
+                         args_from_llm
+                     in
+                     List.map value_of_yojson final_args_str
                  in
                  Hashtbl.add synthesized_rules key (response.func_name, args);
                  Lwt.return_unit

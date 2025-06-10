@@ -126,7 +126,7 @@ let rec js_of_tree (t : tree) : string =
 let rec js_of_value (v : value) : string =
   match v with
   | Tree t -> js_of_tree t
-  | Const c -> string_of_const c
+  | Const c -> wrapped_string_of_const c
   | HandlerHole (l) ->
       js_of_handler l
   | Null -> "null"

@@ -258,7 +258,8 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
   | _, [] ->
       (* no more path, apply the edit directly *)
       abstract_step edit e env
-  | Elem ({ children = List children; _ } as elem), Index i :: rest ->
+  | Elem ({ children = List children; _ } as elem), i :: rest ->
+      let i = convert_index i children env in
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for path");
       let child_e = List.nth children i in

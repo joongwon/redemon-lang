@@ -188,7 +188,7 @@ let extract_related_components (old_val : value) (new_val : value) : value list
 
 let synthesize (abstraction_data : abstraction_multi) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
-  let { init; timelines } = abstraction_data in
+      let { init; timelines; _ } = abstraction_data in
 
   (* 1. 모든 고유 변수 및 컴포넌트(상수) 수집 *)
   let all_vars_list = ref (List.map fst init) in

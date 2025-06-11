@@ -84,6 +84,12 @@ let parse_tree_testcases =
     ( "number_as_children",
       "<hello>{1}</hello>",
       tree_elem "hello" [] [ tree_const (Int 1) ] );
+    ( "signed numbers",
+      "<hello>{-1}{+1}</hello>",
+      tree_elem "hello" [] [ tree_const (Int (-1)); tree_const (Int 1) ] );
+    ( "space around test",
+      "<hello>  world  </hello>",
+      tree_elem "hello" [] [ tree_const (String "world") ] );
   ]
 
 let test_init_abstraction (name, input, expected) =

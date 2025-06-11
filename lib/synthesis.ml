@@ -791,4 +791,44 @@ let test () =
         (show_parameterizable_action p_action)
         fname
         (String.concat ", " (List.map show_value args)))
+    rules_list;
+  Printf.printf "\n";
+
+  let list_push_input_abstraction =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 20, List []) ];
+      timelines =
+        [
+          [
+            ( { label = Label 50; action_type = Input; arg = Some "Input 1" },
+              [
+                (Var 20, List [ Record [ (Var 1, Const (String "Input 1")) ] ]);
+              ] );
+            ( { label = Label 50; action_type = Input; arg = Some "Input 2" },
+              [
+                ( Var 20,
+                  List
+                    [
+                      Record [ (Var 1, Const (String "Input 2")) ];
+                      Record [ (Var 1, Const (String "Input 1")) ];
+                    ] );
+              ] );
+            ( { label = Label 100; action_type = Click; arg = None },
+              [
+                (Var 20, List [ Record [ (Var 1, Const (String "Input 1")) ] ]);
+              ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for List Input push Example:\n";
+  let rules_list = synthesize list_push_input_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
     rules_list

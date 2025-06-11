@@ -1,0 +1,5 @@
+(library
+ (name redemon_with_llm_unix)
+ (libraries redemon_lang cohttp-lwt-unix)
+ (preprocess
+  (pps ppx_yojson_conv ppx_deriving.show ppx_deriving.eq)))

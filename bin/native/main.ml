@@ -46,8 +46,247 @@ let counter_demo =
         ];
     }
 
+let synthesis_test () =
+  let open Synthesis in
+  let open Tree.Syntax in
+  let open Texpr in
+  let open Demo in
+  let open Abstract in
+  let synthesize_with_llm =
+    synthesize_with_llm (module Redemon_with_llm_unix.Api)
+  in
+  let counter_abstraction =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 0)) ];
+      timelines =
+        [
+          [
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 1)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 2)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 3)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 2)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 1)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 0)) ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example:\n";
+  let rules = synthesize counter_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+  Printf.printf "Synthesizing for Counter Example with llm:\n";
+  let rules = synthesize_with_llm counter_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+  let counter_abstraction2 =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 4)) ];
+      timelines =
+        [
+          [
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 5)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 6)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 7)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 6)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 5)) ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example 2:\n";
+  let rules = synthesize counter_abstraction2 in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+
+  let counter_abstraction3 =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 4)) ];
+      timelines =
+        [
+          [
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 8)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 16)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 32)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 16)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 8)) ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example 3:\n";
+  let rules = synthesize counter_abstraction3 in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+
+  let counter_abstraction_timeline =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 1, Const (Int 4)) ];
+      timelines =
+        [
+          [
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 8)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 16)) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 32)) ] );
+          ];
+          [
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 2)) ] );
+            ( { label = Label 2; action_type = Click; arg = None },
+              [ (Var 1, Const (Int 1)) ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for Counter Example with timelines:\n";
+  let rules = synthesize counter_abstraction_timeline in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules;
+  Printf.printf "\n";
+
+  let string_input_abstraction =
+    {
+      sketch = expr_of_tree (Const (String "initial"));
+      init = [ (Var 10, Const (String "initial")) ];
+      timelines =
+        [
+          [
+            ( { label = Label 5; action_type = Input; arg = Some "world" },
+              [ (Var 10, Const (String "world")) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 10, Const (String "hello")) ] );
+            ( { label = Label 5; action_type = Input; arg = Some "changed" },
+              [ (Var 10, Const (String "changed")) ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for String Input Example:\n";
+  let rules_str = synthesize string_input_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules_str;
+  Printf.printf "\n";
+
+  let string_concat_abstraction =
+    {
+      sketch = expr_of_tree (Const (String "initial"));
+      init = [ (Var 10, Const (String "initial")) ];
+      timelines =
+        [
+          [
+            ( { label = Label 5; action_type = Input; arg = Some "world" },
+              [ (Var 10, Const (String "initial world")) ] );
+            ( { label = Label 1; action_type = Click; arg = None },
+              [ (Var 10, Const (String "hello")) ] );
+            ( { label = Label 5; action_type = Input; arg = Some "changed" },
+              [ (Var 10, Const (String "hello changed")) ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for String concat Input Example:\n";
+  let rules_str = synthesize string_concat_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules_str;
+  Printf.printf "\n";
+
+  let list_push_pop_abstraction =
+    {
+      sketch = expr_of_tree (Const (Int 0));
+      init = [ (Var 20, List []) ];
+      timelines =
+        [
+          [
+            ( { label = Label 100; action_type = Click; arg = None },
+              [ (Var 20, List []) ] );
+            ( { label = Label 50; action_type = Click; arg = None },
+              [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
+          ];
+        ];
+    }
+  in
+  Printf.printf "Synthesizing for List Push/Pop Example:\n";
+  let rules_list = synthesize list_push_pop_abstraction in
+  Hashtbl.iter
+    (fun (var_id, p_action) (fname, args) ->
+      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
+        (show_var var_id)
+        (show_parameterizable_action p_action)
+        fname
+        (String.concat ", " (List.map show_value args)))
+    rules_list
+
 let () =
-  (* Synthesis.test (); *)
+  synthesis_test |> ignore;
   let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules

@@ -18,7 +18,6 @@ type llm_synthesis_response = { func_name : string; args : Yojson.Basic.t list }
 let parse_llm_response (json_str : string) :
     (llm_synthesis_response, string) result =
   try
-    let json = Yojson.Basic.from_string json_str in
     let open Yojson.Basic.Util in
     (* Gemini는 JSON 출력 형식을 보장하는 기능이 덜 안정적일 수 있으므로,
        JSON 문자열 안에 마크다운 블록이 포함될 경우를 대비한 추가 처리 *)
@@ -92,3 +91,5 @@ let call_gemini_api (prompt : string) : (string, string) result Lwt.t =
       (Printf.sprintf "Gemini API call failed with status %s: %s"
          (Code.string_of_status status)
          err_body)
+
+let run_lwt = Lwt_main.run

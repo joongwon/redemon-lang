@@ -218,9 +218,9 @@ let s_value (s : record -> record) (v : value) : value =
   | Record r -> Record (s r)
   | _ -> raise (Invalid_argument "Expected Record for apply_substitution_value")
 
-(* abstract_step_traverse path edit e env0 = (e', s, env') =>
-   (forall env ~ env0, teval e' (s env) = teval e env) AND
-   teval e' env' = apply_traverse path edit (teval e' (s env0)) *)
+(* abstract_step_traverse path edit e env0 = (e', s, env') => (forall env ~
+   env0, teval e' (s env) = teval e env) AND teval e' env' = apply_traverse path
+   edit (teval e' (s env0)) *)
 let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
     (env : record) : expr * (record -> record) * record =
   match (e, path) with
@@ -284,26 +284,16 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
   | _ ->
       raise (Invalid_argument "Unsupported expression or path for abstraction")
 
-(*
-let init_abstraction (init : tree) : abstraction =
-  let sketch = expr_of_tree init in
-  { sketch; init = []; steps = [] }
+(* let init_abstraction (init : tree) : abstraction = let sketch = expr_of_tree
+   init in { sketch; init = []; steps = [] }
 
-let add_step ({ sketch; init; steps } : abstraction)
-    ({ action; edits } : demo_step) : abstraction =
-  let last_env =
-    match List.rev steps with [] -> init | (_, env) :: _ -> env
-  in
-  let sketch', s, env' =
-    List.fold_left
-      (fun (e, s, env) (path, edit) ->
-        let e', s', env' = abstract_step_traverse path edit e env in
-        (e', Fun.compose s' s, env'))
-      (sketch, Fun.id, last_env) edits
-  in
-  let steps' = List.map (fun (a, e) -> (a, s e)) steps @ [ (action, env') ] in
-  { sketch = sketch'; init = s init; steps = steps' }
-  *)
+   let add_step ({ sketch; init; steps } : abstraction) ({ action; edits } :
+   demo_step) : abstraction = let last_env = match List.rev steps with [] ->
+   init | (_, env) :: _ -> env in let sketch', s, env' = List.fold_left (fun (e,
+   s, env) (path, edit) -> let e', s', env' = abstract_step_traverse path edit e
+   env in (e', Fun.compose s' s, env')) (sketch, Fun.id, last_env) edits in let
+   steps' = List.map (fun (a, e) -> (a, s e)) steps @ [ (action, env') ] in {
+   sketch = sketch'; init = s init; steps = steps' } *)
 
 let abstract_demo_multi ({ init; timelines } : demo) : abstraction_multi =
   let add_edit (sketch, env, s) (path, edit) =

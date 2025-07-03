@@ -16,31 +16,32 @@ type prog = {
 (* translation of expressions to js syntax *)
 
 (* context of translation *)
-type _ eff  +=
+type _ eff +=
   | Get_prefix : string eff
   | Get_handler : label -> (action_type * (var * expr) list) eff
 
 let with_prefix (prefix : string) (f : 'a -> 'b) (x : 'a) : 'b =
-  match f x with
-  | r -> r
-  | effect Get_prefix, k ->
-      continue k prefix
+  match f x with r -> r | effect Get_prefix, k -> continue k prefix
 
 let with_rules (rules : synthesized_rule list) (f : 'a -> 'b) (x : 'a) : 'b =
   match f x with
   | r -> r
-  | effect (Get_handler label), k ->
-      let handlers = List.filter (fun (rule : synthesized_rule) -> rule.label = label) rules in
-      if List.is_empty handlers then
-        continue k (Demo.Click, [])
+  | effect Get_handler label, k ->
+      let handlers =
+        List.filter (fun (rule : synthesized_rule) -> rule.label = label) rules
+      in
+      if List.is_empty handlers then continue k (Demo.Click, [])
       else
         let rule = List.hd handlers in
-        continue k (rule.action_type, List.map (fun rule -> (rule.state, rule.func)) handlers)
+        continue k
+          ( rule.action_type,
+            List.map (fun rule -> (rule.state, rule.func)) handlers )
 
 (* every prop name is prefixed with this, for example: 0 -> "x0" *)
 let prop_prefix = "x"
 
-(* prefix: prefix appended before Access, for example: prefix="data.x", var=0 -> "data.x0" *)
+(* prefix: prefix appended before Access, for example: prefix="data.x", var=0 ->
+   "data.x0" *)
 let rec js_of_expr (e : expr) : string =
   match e with
   | Const (String s) -> Printf.sprintf "\"%s\"" s
@@ -57,7 +58,7 @@ let rec js_of_expr (e : expr) : string =
       in
       Printf.sprintf "<%s %s>%s</%s>" name attrs_str (jsx_of_expr children) name
   | HandlerHole l -> js_of_handler l
-  | List es -> "[" ^ String.concat ", " (List.map (js_of_expr ) es) ^ "]"
+  | List es -> "[" ^ String.concat ", " (List.map js_of_expr es) ^ "]"
   | Record r ->
       "{"
       ^ String.concat ", "
@@ -79,36 +80,35 @@ let rec js_of_expr (e : expr) : string =
       Printf.sprintf "%s.map(%s => %s)" lst arg
         (with_prefix inner_prefix js_of_expr body)
   | Fun { func; args } ->
-      let args = List.map (js_of_expr) args in
+      let args = List.map js_of_expr args in
       Synthesis.func_to_js func args
 
 and jsx_of_expr (e : expr) : string =
   match e with
   | Const c -> string_of_const c
   | Elem _ -> js_of_expr e
-  | List es -> String.concat "\n" (List.map (jsx_of_expr) es)
+  | List es -> String.concat "\n" (List.map jsx_of_expr es)
   | _ -> Printf.sprintf "{%s}" (js_of_expr e)
 
 and js_of_handler (l : label) : string =
-      let action_type, sets = perform (Get_handler l) in
-      let sets_str =
-        String.concat "\n"
-          (List.map
-             (fun (Var v, e) ->
-               Printf.sprintf "setS%d(%s);" v (with_prefix "s" js_of_expr e))
-             sets)
-      in
-      (match action_type with
-      | Demo.Input ->
-          Printf.sprintf "e => {\n  let input = e.target.value;\n%s}" sets_str
-      | Demo.Click ->
-          Printf.sprintf "() => {\n%s}" sets_str)
+  let action_type, sets = perform (Get_handler l) in
+  let sets_str =
+    String.concat "\n"
+      (List.map
+         (fun (Var v, e) ->
+           Printf.sprintf "setS%d(%s);" v (with_prefix "s" js_of_expr e))
+         sets)
+  in
+  match action_type with
+  | Demo.Input ->
+      Printf.sprintf "e => {\n  let input = e.target.value;\n%s}" sets_str
+  | Demo.Click -> Printf.sprintf "() => {\n%s}" sets_str
 
 let js_of_attr_value (v : attr_value) : string =
   match v with
   | AttrConst (String s) -> Printf.sprintf "\"%s\"" s
   | AttrConst (Int i) -> Printf.sprintf "{%d}" i
-  | AttrFunc (l) -> Printf.sprintf "{%s}" (js_of_handler l)
+  | AttrFunc l -> Printf.sprintf "{%s}" (js_of_handler l)
 
 let rec js_of_tree (t : tree) : string =
   match t with
@@ -127,8 +127,7 @@ let rec js_of_value (v : value) : string =
   match v with
   | Tree t -> js_of_tree t
   | Const c -> string_of_const c
-  | HandlerHole (l) ->
-      js_of_handler l
+  | HandlerHole l -> js_of_handler l
   | Null -> "null"
   | List vs -> "[" ^ String.concat ", " (List.map js_of_value vs) ^ "]"
   | Record r ->
@@ -149,10 +148,8 @@ let js_of_prog (p : prog) : string =
          p.states)
   ^ Printf.sprintf "  const data = %s;\n" (with_prefix "s" js_of_expr p.data)
   ^ Printf.sprintf "  return %s;\n"
-      (
-        ((fun () -> js_of_expr p.view)
-        |> with_prefix ("data." ^ prop_prefix)
-        |> with_rules p.handlers)
-        ()
-      )
+      (((fun () -> js_of_expr p.view)
+       |> with_prefix ("data." ^ prop_prefix)
+       |> with_rules p.handlers)
+         ())
   ^ "}\n\n" ^ "render(<App />);\n"

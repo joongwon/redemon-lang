@@ -4,10 +4,8 @@ open Demo
 open Abstract
 open Lwt.Syntax
 
-(* list function:
-  map, concat, length
-  TODO: filter(find)
-*)
+(* list function: map, concat, length
+ * TODO: filter(find) *)
 
 exception TypeError of string
 exception LengthError of string
@@ -108,7 +106,7 @@ let concat_str (v1 : value) (v2 : value) : value =
   | Const (String s1), Const (String s2) -> Const (String (s1 ^ s2))
   | _ -> raise (TypeError "ConcatStr: Expected two string constants")
 
-(* Fuction candidate  end *)
+(* Fuction candidate end *)
 let lookup_val (v_id : var) (r : record) : value =
   try List.assoc v_id r
   with Not_found ->
@@ -169,7 +167,7 @@ let extract_related_components (old_val : value) (new_val : value) : value list
          | hd :: tl when equal_value (List tl) (List l1) ->
              components := hd :: !components
          | _ -> ());
-      (* 원소가 맨 뒤에 추가된 경우  *)
+      (* 원소가 맨 뒤에 추가된 경우 *)
       (if len2 = len1 + 1 then
          let rec get_last_and_init = function
            | [] -> None
@@ -224,8 +222,8 @@ let format_prompt_for_gemini (key : var * parameterizable_action)
      the user's input action. The user input is provided in the examples.\n"
   in
 
-  (* Gemini는 OpenAI의 'system' 역할과 같은 강력한 역할 지정 기능이 덜 명확하므로,
-     모든 지시사항을 user 프롬프트 안에 명확하게 포함하는 것이 중요. *)
+  (* Gemini는 OpenAI의 'system' 역할과 같은 강력한 역할 지정 기능이 덜 명확하므로, 모든 지시사항을 user 프롬프트
+     안에 명확하게 포함하는 것이 중요. *)
   Printf.sprintf
     "You are a program synthesis expert. Your task is to find a single \
      function call that explains a series of state changes.\n\n\
@@ -341,11 +339,11 @@ let synthesize (abstraction_data : abstraction_multi) :
     (fun (key : var * parameterizable_action)
          (transitions_rev : (value * value * action) list) ->
       let transitions = List.rev transitions_rev in
-      (* 
-    Printf.printf "Synthesizing for key: (%s, %s) with %d transitions\n"
-      (show_var (fst key)) (show_parameterizable_action (snd key)) (List.length transitions);
-    List.iter (fun (ov,nv,a) -> Printf.printf "  %s -> %s (action: %s)\n" (show_value ov) (show_value nv) (show_action a)) transitions;
-    *)
+      (* Printf.printf "Synthesizing for key: (%s, %s) with %d transitions\n"
+         (show_var (fst key)) (show_parameterizable_action (snd key))
+         (List.length transitions); List.iter (fun (ov,nv,a) -> Printf.printf "
+         %s -> %s (action: %s)\n" (show_value ov) (show_value nv) (show_action
+         a)) transitions; *)
 
       let v_id_checking, p_action_checking = key in
 
@@ -428,7 +426,9 @@ let synthesize (abstraction_data : abstraction_multi) :
              transitions
          in
          if all_match_input_set && transitions <> [] then
-           (* Printf.printf "  SUCCESS with set_to_input_string for key (%s, %s)\n" (show_var v_id_checking) (show_parameterizable_action p_action_checking); *)
+           (* Printf.printf " SUCCESS with set_to_input_string for key (%s,
+              %s)\n" (show_var v_id_checking) (show_parameterizable_action
+              p_action_checking); *)
            found_rule := Some ("set_to_input_string", []));
 
       (* 다른 후보 연산 시도 *)
@@ -466,10 +466,9 @@ let synthesize (abstraction_data : abstraction_multi) :
               (show_var v_id_checking)
               (show_parameterizable_action p_action_checking)
               (List.length transitions)
-      (* 또는 예외 발생:
-        raise (SynthesisFailed (Printf.sprintf "For key (%s, %s), no single function explained all transitions."
-          (show_var v_id_checking) (show_parameterizable_action p_action_checking)))
-        *))
+      (* 또는 예외 발생: raise (SynthesisFailed (Printf.sprintf "For key (%s, %s), no
+         single function explained all transitions." (show_var v_id_checking)
+         (show_parameterizable_action p_action_checking))) *))
     observations;
 
   synthesized_rules

@@ -1,7 +1,5 @@
 open Js_of_ocaml
-open Js_of_ocaml_lwt
 open Lwt.Infix
-open Promise_lwt
 
 type llm_synthesis_response = { func_name : string; args : Yojson.Basic.t list }
 
@@ -48,8 +46,8 @@ let call_gemini_api (prompt : string) : (string, string) result Lwt.t =
                   ("parts", `List [ `Assoc [ ("text", `String prompt) ] ]);
                 ];
             ] );
-        (* 시스템 프롬프트는 contents의 첫 부분에 넣거나, 튜닝된 모델을 사용해야 함.
-         여기서는 간단하게 user 프롬프트에 모두 포함시킴 *)
+        (* 시스템 프롬프트는 contents의 첫 부분에 넣거나, 튜닝된 모델을 사용해야 함. 여기서는 간단하게 user 프롬프트에
+           모두 포함시킴 *)
         ( "generationConfig",
           `Assoc
             [
@@ -74,12 +72,12 @@ let call_gemini_api (prompt : string) : (string, string) result Lwt.t =
         Js.Unsafe.meth_call Js.Unsafe.global "fetch"
           [| Js.Unsafe.inject url_js; Js.Unsafe.inject init_js |]
       in
-      of_promise promise >>= fun response ->
+      Promise_lwt.of_promise promise >>= fun response ->
       if not (Js.to_bool response##.ok) then
         Lwt.return
           (Error (Printf.sprintf "API call failed: %d" response##.status))
       else
-        of_promise (response##text ()) >>= fun body_text ->
+        Promise_lwt.of_promise (response##text ()) >>= fun body_text ->
         let body_text_str = Js.to_string body_text in
         try
           let json = Yojson.Basic.from_string body_text_str in

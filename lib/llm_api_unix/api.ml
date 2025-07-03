@@ -19,8 +19,8 @@ let parse_llm_response (json_str : string) :
     (llm_synthesis_response, string) result =
   try
     let open Yojson.Basic.Util in
-    (* Gemini는 JSON 출력 형식을 보장하는 기능이 덜 안정적일 수 있으므로,
-       JSON 문자열 안에 마크다운 블록이 포함될 경우를 대비한 추가 처리 *)
+    (* Gemini는 JSON 출력 형식을 보장하는 기능이 덜 안정적일 수 있으므로, JSON 문자열 안에 마크다운 블록이 포함될 경우를
+       대비한 추가 처리 *)
     let clean_json_str =
       if String.starts_with ~prefix:"```json" json_str then
         let s = String.sub json_str 7 (String.length json_str - 10) in
@@ -54,8 +54,8 @@ let call_gemini_api (prompt : string) : (string, string) result Lwt.t =
                   ("parts", `List [ `Assoc [ ("text", `String prompt) ] ]);
                 ];
             ] );
-        (* 시스템 프롬프트는 contents의 첫 부분에 넣거나, 튜닝된 모델을 사용해야 함.
-         여기서는 간단하게 user 프롬프트에 모두 포함시킴 *)
+        (* 시스템 프롬프트는 contents의 첫 부분에 넣거나, 튜닝된 모델을 사용해야 함. 여기서는 간단하게 user 프롬프트에
+           모두 포함시킴 *)
         ( "generationConfig",
           `Assoc
             [

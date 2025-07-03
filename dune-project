@@ -17,12 +17,12 @@
   dune
   base
   logs
+  cohttp-lwt-unix
   js_of_ocaml
   js_of_ocaml-ppx
+  js_of_ocaml-lwt
+  promise_jsoo_lwt
   ppx_deriving
   yojson
   ppx_yojson_conv
-  cohttp-lwt-unix
-  cohttp-async
-  lwt_ssl
   (alcotest :with-test)))

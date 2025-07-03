@@ -62,6 +62,11 @@ let pop (v1 : value) : value =
 
 (* interger function *)
 
+let set_to_const_int (v_old : value) (v_new_int_const : value) : value =
+  match v_new_int_const with
+  | Const (Int i) -> Const (Int i)
+  | _ -> raise (TypeError "SetToConstInt: Expected an integer constant")
+
 let plus (v1 : value) (v2 : value) : value =
   match (v1, v2) with
   | Const (Int i1), Const (Int i2) -> Const (Int (i1 + i2))
@@ -188,7 +193,7 @@ let extract_related_components (old_val : value) (new_val : value) : value list
 
 let synthesize (abstraction_data : abstraction_multi) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
-      let { init; timelines; _ } = abstraction_data in
+  let { init; timelines; _ } = abstraction_data in
 
   (* 1. 모든 고유 변수 및 컴포넌트(상수) 수집 *)
   let all_vars_list = ref (List.map fst init) in
@@ -235,14 +240,13 @@ let synthesize (abstraction_data : abstraction_multi) :
               try
                 let old_val = lookup_val v_id prev_s in
                 let new_val = lookup_val v_id next_s in
-                if not (equal_value old_val new_val) then
-                  let key = (v_id, p_act) in
-                  let existing_obs =
-                    try Hashtbl.find observations key with Not_found -> []
-                  in
-                  (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
-                  Hashtbl.replace observations key
-                    ((old_val, new_val, act) :: existing_obs)
+                let key = (v_id, p_act) in
+                let existing_obs =
+                  try Hashtbl.find observations key with Not_found -> []
+                in
+                (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
+                Hashtbl.replace observations key
+                  ((old_val, new_val, act) :: existing_obs)
               with NotFound _ -> ())
             all_vars;
           current_s := next_s)
@@ -325,6 +329,11 @@ let synthesize (abstraction_data : abstraction_multi) :
             :: ( "concat_str",
                  (fun old new_val ->
                    try equal_value (concat_str old comp_arg) new_val
+                   with TypeError _ -> false),
+                 Some [ comp_arg ] )
+            :: ( "set_to_const_int",
+                 (fun _old new_val ->
+                   try equal_value (set_to_const_int _old comp_arg) new_val
                    with TypeError _ -> false),
                  Some [ comp_arg ] )
             :: (* change_string v1 s는 v1이 s가 됨. 즉, new_val = comp_arg *)
@@ -584,15 +593,7 @@ let test () =
             ( { label = Label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 1)) ] );
             ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 2)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 3)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 2)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 1)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 0)) ] );
           ];
         ];
     }

@@ -47,7 +47,7 @@ let counter_demo =
     }
 
 let () =
-  (* Synthesis.test (); *)
+  Synthesis.test ();
   let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules

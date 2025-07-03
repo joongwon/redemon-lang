@@ -46,8 +46,6 @@ module Candidate = struct
         aux l
     | _ -> raise (TypeError "Find: Expected a list")
 
-  (* record function *)
-
   let push (v1 : value) (v2 : value) : value =
     match v1 with
     | List l -> List (v2 :: l)
@@ -58,8 +56,6 @@ module Candidate = struct
     | List [] -> raise (LengthError "Pop: Cannot pop from an empty list")
     | List (_ :: l) -> List l
     | _ -> raise (TypeError "Pop: Expected a list")
-
-  (* interger function *)
 
   let set_to_const_int (v_new_int_const : value) : value =
     match v_new_int_const with
@@ -87,8 +83,6 @@ module Candidate = struct
         if i2 = 0 then raise (InvalidOperation "divide: divide with 0")
         else Const (Int (i1 / i2))
     | _ -> raise (TypeError "Divide: Expected two integers")
-
-  (* string function *)
 
   let change_string_to (v_target_type : value) (s_new_val : string) : value =
     match v_target_type with
@@ -232,6 +226,8 @@ let to_param_action : action -> parameterizable_action = function
   | { label = l; action_type = Click; _ } -> P_Click l
   | { label = l; action_type = Input; _ } -> P_Input l
 
+(* TODO: Why not use action directly? *)
+type key = var * parameterizable_action
 type synthesized_function = string * value list
 
 (* value 변화도 부품 *)
@@ -290,7 +286,7 @@ let extract_related_components (old_val : value) (new_val : value) : value list
   | _, _ -> []
 
 let synthesize ({ init; timelines; _ } : abstraction_multi) :
-    (var * parameterizable_action, synthesized_function) Hashtbl.t =
+    (key, synthesized_function) Hashtbl.t =
   (* 1. 모든 고유 변수 및 컴포넌트(상수) 수집 *)
 
   (* TODO: Refactor using a set *)
@@ -371,8 +367,7 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
   let synthesized_rules = Hashtbl.create (Hashtbl.length observations) in
 
   Hashtbl.iter
-    (fun (key : var * parameterizable_action)
-         (transitions_rev : (value * value * action) list) ->
+    (fun (key : key) (transitions_rev : (value * value * action) list) ->
       let transitions = List.rev transitions_rev in
       (* Printf.printf "Synthesizing for key: (%s, %s) with %d transitions\n"
          (show_var (fst key)) (show_parameterizable_action (snd key))
@@ -514,36 +509,37 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
 
   synthesized_rules
 
-(* NOTE: LLM backend part *)
-let llm_system_instruction =
-  "You are a program synthesis expert. Your task is to find a single function \
-   call that explains a series of state changes."
+module Llm_backend = struct
+  let system_instruction =
+    "You are a program synthesis expert. Your task is to find a single \
+     function call that explains a series of state changes."
 
-let llm_prompt ((var_id, p_action) : var * parameterizable_action)
-    (transitions : (value * value * action) list) : string =
-  let action_desc =
-    match p_action with
-    | P_Click l ->
-        Printf.sprintf "user CLICKS the element with label {%s}" (show_label l)
-    | P_Input l ->
-        Printf.sprintf "user INPUTS text into the element with label {%s}"
-          (show_label l)
-  in
-  let transitions_str =
-    transitions
-    |> List.map (fun (old_val, new_val, act) ->
-           let input_info =
-             match act with
-             | { action_type = Input; arg = Some s; _ } ->
-                 Printf.sprintf " with input {%s}" s
-             | _ -> ""
-           in
-           Printf.sprintf "  - From {%s} to {%s}%s" (show_value old_val)
-             (show_value new_val) input_info)
-    |> String.concat "\n"
-  in
-  let function_library =
-    {|Available functions:
+  let promptify ((var_id, p_action) : key)
+      (transitions : (value * value * action) list) : string =
+    let action_desc =
+      match p_action with
+      | P_Click l ->
+          Printf.sprintf "user CLICKS the element with label {%s}"
+            (show_label l)
+      | P_Input l ->
+          Printf.sprintf "user INPUTS text into the element with label {%s}"
+            (show_label l)
+    in
+    let transitions_str =
+      transitions
+      |> List.map (fun (old_val, new_val, act) ->
+             let input_info =
+               match act with
+               | { action_type = Input; arg = Some s; _ } ->
+                   Printf.sprintf " with input {%s}" s
+               | _ -> ""
+             in
+             Printf.sprintf "  - From {%s} to {%s}%s" (show_value old_val)
+               (show_value new_val) input_info)
+      |> String.concat "\n"
+    in
+    let function_library =
+      {|Available functions:
   - plus(val, num): Returns val + num.
   - minus(val, num): Returns val - num.
   - pop(list): Removes the first element of a list.
@@ -551,179 +547,199 @@ let llm_prompt ((var_id, p_action) : var * parameterizable_action)
   - concat_str(str1, str2): Concatenates two strings.
   - set_to_const_string(old_val, new_str_const): Sets the value to a new string constant.
   - set_to_input_string(old_val): Sets the value to the string provided by the user's input action. The user input is provided in the examples.|}
-  in
+    in
 
-  Printf.sprintf
-    "A variable '%s' changes its value when %s.\n\
-     Here are the observed transitions:\n\
-     %s\n\n\
-     %s\n\n\
-     Based on these examples, what single function call updates the old value \
-     to the new value?\n\
-     The first argument to the function is always the old value of the \
-     variable '%s'.\n\
-     For 'set_to_input_string', the function takes only one argument (the old \
-     value), and you must infer its usage from the examples.\n\
-     For other functions, if they need a constant argument (like a number or a \
-     string), provide that constant value.\n\n\
-     Your response MUST be a single, valid JSON object in the following \
-     format, and nothing else:\n\
-     {\"function\": \"<function_name>\", \"args\": [<arg1>, <arg2>, ...]}"
-    (show_var var_id) action_desc transitions_str function_library
-    (show_var var_id)
+    Printf.sprintf
+      "A variable '%s' changes its value when %s.\n\
+       Here are the observed transitions:\n\
+       %s\n\n\
+       %s\n\n\
+       Based on these examples, what single function call updates the old \
+       value to the new value?\n\
+       The first argument to the function is always the old value of the \
+       variable '%s'.\n\
+       For 'set_to_input_string', the function takes only one argument (the \
+       old value), and you must infer its usage from the examples.\n\
+       For other functions, if they need a constant argument (like a number or \
+       a string), provide that constant value.\n\n\
+       Your response MUST be a single, valid JSON object in the following \
+       format, and nothing else:\n\
+       {\"function\": \"<function_name>\", \"args\": [<arg1>, <arg2>, ...]}"
+      (show_var var_id) action_desc transitions_str function_library
+      (show_var var_id)
 
-let rec value_of_yojson (json : Yojson.Basic.t) : value =
-  match json with
-  | `Int i -> Const (Int i)
-  | `Float f ->
-      (* JSON은 보통 숫자를 float으로 다루므로, 정수로 변환해줍니다. *)
-      Const (Int (int_of_float f))
-  | `String s -> Const (String s)
-  | `List l ->
-      (* JSON 리스트의 각 원소에 대해 재귀적으로 변환을 적용합니다. *)
-      List (List.map value_of_yojson l)
-  | `Assoc o ->
-      (* JSON 객체는 우리 시스템의 'Record' 타입으로 변환합니다. *)
-      (* 키(key)는 문자열 형태이므로, 이를 'Var' 타입으로 변환해야 합니다. *)
-      let record_items =
-        List.map
-          (fun (key_str, v_json) ->
-            try
-              (* "1", "2"와 같은 문자열 키를 Var 1, Var 2로 변환 *)
-              let var_id = Var (int_of_string key_str) in
-              let value_item = value_of_yojson v_json in
-              (var_id, value_item)
-            with Failure _ ->
-              failwith
-                (Printf.sprintf
-                   "Invalid record key in LLM response: '%s'. Key must be a \
-                    string representing an integer."
-                   key_str))
-          o
+  let rec value_of_yojson (json : Yojson.Basic.t) : value =
+    match json with
+    | `Int i -> Const (Int i)
+    | `Float f ->
+        (* JSON은 보통 숫자를 float으로 다루므로, 정수로 변환해줍니다. *)
+        Const (Int (int_of_float f))
+    | `String s -> Const (String s)
+    | `List l ->
+        (* JSON 리스트의 각 원소에 대해 재귀적으로 변환을 적용합니다. *)
+        List (List.map value_of_yojson l)
+    | `Assoc o ->
+        (* JSON 객체는 우리 시스템의 'Record' 타입으로 변환합니다. *)
+        (* 키(key)는 문자열 형태이므로, 이를 'Var' 타입으로 변환해야 합니다. *)
+        let record_items =
+          List.map
+            (fun (key_str, v_json) ->
+              try
+                (* "1", "2"와 같은 문자열 키를 Var 1, Var 2로 변환 *)
+                let var_id = Var (int_of_string key_str) in
+                let value_item = value_of_yojson v_json in
+                (var_id, value_item)
+              with Failure _ ->
+                failwith
+                  (Printf.sprintf
+                     "Invalid record key in LLM response: '%s'. Key must be a \
+                      string representing an integer."
+                     key_str))
+            o
+        in
+        Record record_items
+    | `Null -> Null
+    | `Bool _ -> failwith "Boolean to 'value' conversion is not implemented."
+
+  let is_var_ref_yojson (arg_json : Yojson.Basic.t) (var_id : var) : bool =
+    let (Var target_id) = var_id in
+    let target_id_str = string_of_int target_id in
+
+    try
+      match arg_json with
+      (* LLM이 숫자로 반환한 경우: 1 *)
+      | `Int _ -> false
+      (* LLM이 문자열로 반환한 경우: "1", "Var(1)", "(Texpr.Var 1)" 등 *)
+      | `String s ->
+          let s = String.trim s in
+          (* "Var(1)" 또는 "(Texpr.Var 1)" 패턴 *)
+          if
+            Str.string_match (Str.regexp "Var(\\([0-9]+\\))") s 0
+            || Str.string_match (Str.regexp "(Texpr.Var \\([0-9]+\\))") s 0
+          then int_of_string (Str.matched_group 1 s) = target_id
+          (* 그냥 숫자 문자열 "1" *)
+            else s = target_id_str
+      | _ -> false
+    with _ -> false
+
+  type response = { func_name : string; args : Yojson.Basic.t list }
+
+  let parse_response (json_str : string) =
+    try
+      let clean_json_str =
+        if String.starts_with ~prefix:"```json" json_str then
+          let s = String.sub json_str 7 (String.length json_str - 10) in
+          String.trim s
+        else json_str
       in
-      Record record_items
-  | `Null -> Null
-  | `Bool _ -> failwith "Boolean to 'value' conversion is not implemented."
+      let json = Yojson.Basic.from_string clean_json_str in
 
-let is_var_ref_yojson (arg_json : Yojson.Basic.t) (var_id : var) : bool =
-  let (Var target_id) = var_id in
-  let target_id_str = string_of_int target_id in
+      let open Yojson.Basic.Util in
+      let func_name = json |> member "function" |> to_string in
+      let args = json |> member "args" |> to_list in
+      Ok { func_name; args }
+    with e ->
+      Error
+        (Printf.sprintf "Failed to parse LLM response: %s. Raw: %s"
+           (Printexc.to_string e) json_str)
 
-  try
-    match arg_json with
-    (* LLM이 숫자로 반환한 경우: 1 *)
-    | `Int _ -> false
-    (* LLM이 문자열로 반환한 경우: "1", "Var(1)", "(Texpr.Var 1)" 등 *)
-    | `String s ->
-        let s = String.trim s in
-        (* "Var(1)" 또는 "(Texpr.Var 1)" 패턴 *)
-        if
-          Str.string_match (Str.regexp "Var(\\([0-9]+\\))") s 0
-          || Str.string_match (Str.regexp "(Texpr.Var \\([0-9]+\\))") s 0
-        then int_of_string (Str.matched_group 1 s) = target_id
-        (* 그냥 숫자 문자열 "1" *)
-          else s = target_id_str
-    | _ -> false
-  with _ -> false
+  let extract_function_from_response ~(var : var) (response : response) =
+    let args =
+      if response.func_name = "set_to_input_string" then []
+      else
+        response.args
+        |> List.filter (fun arg_json -> not (is_var_ref_yojson arg_json var))
+        |> List.map value_of_yojson
+    in
+    (response.func_name, args)
 
-module type SynthesisAPI = sig
-  type llm_synthesis_response = {
-    func_name : string;
-    args : Yojson.Basic.t list;
-  }
+  module type Api = sig
+    val call_gemini_api : string -> (string, string) Lwt_result.t
+  end
 
-  val call_gemini_api : string -> (string, string) Lwt_result.t
-  val parse_llm_response : string -> (llm_synthesis_response, string) result
-end
+  let extract_prompts ({ init; timelines; _ } : abstraction_multi) :
+      (key * string) list =
+    let all_vars =
+      let all_vars_ref = ref (List.map fst init) in
+      List.iter
+        (List.iter (fun (_, r) ->
+             all_vars_ref := List.map fst r @ !all_vars_ref))
+        timelines;
+      List.sort_uniq compare !all_vars_ref
+    in
 
-let synthesize_with_llm (module Api : SynthesisAPI)
-    ({ init; timelines; _ } : abstraction_multi) :
-    (var * parameterizable_action, synthesized_function) Hashtbl.t Lwt.t =
-  let all_vars =
-    let all_vars_ref = ref (List.map fst init) in
+    (* 1. 관찰 결과 수집 (기존과 동일) *)
+    let observations = Hashtbl.create (List.length all_vars * 5) in
+
+    (* 각 타임라인은 독립적으로 초기 상태(init)에서 시작 *)
     List.iter
-      (List.iter (fun (_, r) -> all_vars_ref := List.map fst r @ !all_vars_ref))
+      (let current_s = ref init in
+       List.iter (fun (act, next_s) ->
+           let prev_s = !current_s in
+           let p_act = to_param_action act in
+           List.iter
+             (fun var ->
+               try
+                 let old_val = lookup ~var prev_s in
+                 let new_val = lookup ~var next_s in
+                 let key = (var, p_act) in
+                 let existing_obs =
+                   try Hashtbl.find observations key with Not_found -> []
+                 in
+                 (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
+                 Hashtbl.replace observations key
+                   ((old_val, new_val, act) :: existing_obs)
+               with NotFound _ -> ())
+             all_vars;
+           current_s := next_s))
       timelines;
-    List.sort_uniq compare !all_vars_ref
-  in
 
-  (* 1. 관찰 결과 수집 (기존과 동일) *)
-  let observations = Hashtbl.create (List.length all_vars * 5) in
+    let process_observation (key, transitions_rev) =
+      let transitions = List.rev transitions_rev in
+      (key, promptify key transitions)
+    in
+    observations |> Hashtbl.to_seq |> List.of_seq
+    |> List.map process_observation
 
-  (* 각 타임라인은 독립적으로 초기 상태(init)에서 시작 *)
-  List.iter
-    (let current_s = ref init in
-     List.iter (fun (act, next_s) ->
-         let prev_s = !current_s in
-         let p_act = to_param_action act in
-         List.iter
-           (fun var ->
-             try
-               let old_val = lookup ~var prev_s in
-               let new_val = lookup ~var next_s in
-               let key = (var, p_act) in
-               let existing_obs =
-                 try Hashtbl.find observations key with Not_found -> []
-               in
-               (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
-               Hashtbl.replace observations key
-                 ((old_val, new_val, act) :: existing_obs)
-             with NotFound _ -> ())
-           all_vars;
-         current_s := next_s))
-    timelines;
+  let synthesize_from_response (keyed_responses : (key * string) list) :
+      (key, synthesized_function) Hashtbl.t =
+    let synthesized_rules =
+      (* Better size guess? *)
+      Hashtbl.create (List.length keyed_responses)
+    in
 
-  let obs_list = Hashtbl.to_seq observations |> List.of_seq in
-  let synthesized_rules = Hashtbl.create (Hashtbl.length observations) in
-
-  (* 2. 각 관찰에 대해 Gemini API 호출 및 결과 파싱 *)
-  let process_observation (key, transitions_rev) =
-    let var_id_being_updated, _ = key in
-    let transitions = List.rev transitions_rev in
-    (* (MODIFIED) Gemini용 프롬프트 포맷터 호출 *)
-    let prompt = llm_prompt key transitions in
-    let* result = Api.call_gemini_api prompt in
-    match result with
-    | Error e ->
-        Printf.eprintf "API Error for key %s: %s\n"
-          (show_parameterizable_action (snd key))
-          e;
-        Lwt.return_unit
-    | Ok response_str -> (
-        match Api.parse_llm_response response_str with
+    List.iter
+      (fun (key, response_str) ->
+        match parse_response response_str with
+        | Ok response ->
+            let func = extract_function_from_response ~var:(fst key) response in
+            Hashtbl.add synthesized_rules key func
         | Error e ->
-            Printf.eprintf "Parsing Error for key %s: %s\n"
+            Printf.eprintf "API Error for key %s: %s\n"
               (show_parameterizable_action (snd key))
-              e;
-            Lwt.return_unit
-        | Ok response -> (
-            try
-              let args =
-                if response.func_name = "set_to_input_string" then []
-                else
-                  let args_from_llm = response.args in
-                  let final_args_str =
-                    List.filter
-                      (fun arg_str ->
-                        not (is_var_ref_yojson arg_str var_id_being_updated))
-                      args_from_llm
-                  in
-                  List.map value_of_yojson final_args_str
-              in
-              Hashtbl.add synthesized_rules key (response.func_name, args);
-              Lwt.return_unit
-            with
-            | Failure msg ->
-                Printf.eprintf "Arg conversion Error: %s\n" msg;
-                Lwt.return_unit
-            | e ->
-                Printf.eprintf "Unexpected Error: %s\n" (Printexc.to_string e);
-                Lwt.return_unit))
-  in
-  (* TODO: iter_s vs iter_p? *)
-  let* () = Lwt_list.iter_p process_observation obs_list in
+              e)
+      keyed_responses;
 
-  Lwt.return synthesized_rules
+    synthesized_rules
+
+  let synthesize (module Api : Api) (abs : abstraction_multi) :
+      (key, synthesized_function) Hashtbl.t Lwt.t =
+    let process_prompt (key, prompt) =
+      let* result = Api.call_gemini_api prompt in
+      match result with
+      | Error e ->
+          Printf.eprintf "API Error for key %s: %s\n"
+            (show_parameterizable_action (snd key))
+            e;
+          Lwt.return None
+      | Ok response_str -> Lwt.return (Some (key, response_str))
+    in
+    let* keyed_responses =
+      abs |> extract_prompts |> Lwt_list.filter_map_p process_prompt
+    in
+    let synthesized_rules = synthesize_from_response keyed_responses in
+    Lwt.return synthesized_rules
+end
 
 type state = var [@@deriving show, eq]
 
@@ -756,8 +772,7 @@ let translate_synthesized_rule (var : var) (p_action : parameterizable_action)
   { state = var; label; action_type; func }
 
 let translate_synthesized_rules
-    (synthesized_rules :
-      (var * parameterizable_action, synthesized_function) Hashtbl.t) :
+    (synthesized_rules : (key, synthesized_function) Hashtbl.t) :
     synthesized_rule list =
   Hashtbl.fold
     (fun (var, p_action) (fname, args) acc ->

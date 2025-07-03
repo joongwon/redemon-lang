@@ -54,7 +54,7 @@ let synthesis_test () =
   let open Demo in
   let open Abstract in
   let synthesize_with_llm =
-    synthesize_with_llm (module Redemon_with_llm_unix.Api)
+    Llm_backend.synthesize (module Redemon_with_llm_unix.Api)
   in
   let counter_abstraction =
     {

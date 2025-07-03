@@ -1,27 +1,6 @@
 open Js_of_ocaml
 open Lwt.Infix
 
-type llm_synthesis_response = { func_name : string; args : Yojson.Basic.t list }
-
-let parse_llm_response =
- fun (json_str : string) ->
-  try
-    let clean_json_str =
-      if String.starts_with ~prefix:"```json" json_str then
-        let s = String.sub json_str 7 (String.length json_str - 10) in
-        String.trim s
-      else json_str
-    in
-    let json = Yojson.Basic.from_string clean_json_str in
-    let open Yojson.Basic.Util in
-    let func_name = json |> member "function" |> to_string in
-    let args = json |> member "args" |> to_list in
-    Ok { func_name; args }
-  with e ->
-    Error
-      (Printf.sprintf "Failed to parse LLM response: %s. Raw: %s"
-         (Printexc.to_string e) json_str)
-
 let call_gemini_api (prompt : string) : (string, string) result Lwt.t =
   let api_key = "" in
   let url =

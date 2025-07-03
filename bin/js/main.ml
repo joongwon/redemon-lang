@@ -37,7 +37,7 @@ let synthesize (tree_src : string) (timelines : Demo.demo_timeline list) :
   | Error e -> Lwt.return (Error e)
   | Ok abs ->
       let synthesize_with_llm =
-        Synthesis.synthesize_with_llm (module Redemon_with_llm_js.Api)
+        Synthesis.Llm_backend.synthesize (module Redemon_with_llm_js.Api)
       in
       synthesize_with_llm abs >>= fun rules_ht ->
       let result = Synthesis.translate_synthesized_rules rules_ht in

@@ -62,7 +62,7 @@ let pop (v1 : value) : value =
 
 (* interger function *)
 
-let set_to_const_int (v_old : value) (v_new_int_const : value) : value =
+let set_to_const_int (v_new_int_const : value) : value =
   match v_new_int_const with
   | Const (Int i) -> Const (Int i)
   | _ -> raise (TypeError "SetToConstInt: Expected an integer constant")
@@ -333,7 +333,7 @@ let synthesize (abstraction_data : abstraction_multi) :
                  Some [ comp_arg ] )
             :: ( "set_to_const_int",
                  (fun _old new_val ->
-                   try equal_value (set_to_const_int _old comp_arg) new_val
+                   try equal_value (set_to_const_int comp_arg) new_val
                    with TypeError _ -> false),
                  Some [ comp_arg ] )
             :: (* change_string v1 s는 v1이 s가 됨. 즉, new_val = comp_arg *)

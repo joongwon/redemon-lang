@@ -40,6 +40,15 @@ type value =
 
 and record = (var * value) list [@@deriving eq, show]
 
+exception NotFound of string
+
+let lookup ~(var : var) (r : record) : value =
+  try List.assoc var r
+  with Not_found ->
+    raise
+      (NotFound
+         (Printf.sprintf "Variable %s not found in record" (show_var var)))
+
 (* definitional interpreter for expressions *)
 let rec eval (e : expr) (root : record) : value =
   match e with

@@ -81,7 +81,7 @@ let rec js_of_expr (e : expr) : string =
         (with_prefix inner_prefix js_of_expr body)
   | Fun { func; args } ->
       let args = List.map js_of_expr args in
-      Synthesis.func_to_js func args
+      Synthesis.Candidate.func_to_js func args
 
 and jsx_of_expr (e : expr) : string =
   match e with

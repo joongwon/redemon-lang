@@ -91,5 +91,3 @@ let call_gemini_api (prompt : string) : (string, string) result Lwt.t =
       (Printf.sprintf "Gemini API call failed with status %s: %s"
          (Code.string_of_status status)
          err_body)
-
-let run_lwt = Lwt_main.run

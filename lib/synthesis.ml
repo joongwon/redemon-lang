@@ -536,12 +536,11 @@ module type SynthesisAPI = sig
 
   val call_gemini_api : string -> (string, string) Lwt_result.t
   val parse_llm_response : string -> (llm_synthesis_response, string) result
-  val run_lwt : 'a Lwt.t -> 'a
 end
 
 let synthesize_with_llm (module Api : SynthesisAPI)
     (abstraction_data : abstraction_multi) :
-    (var * parameterizable_action, synthesized_function) Hashtbl.t =
+    (var * parameterizable_action, synthesized_function) Hashtbl.t Lwt.t =
   let { init; timelines; _ } = abstraction_data in
   let all_vars_list = ref (List.map fst init) in
 
@@ -592,54 +591,52 @@ let synthesize_with_llm (module Api : SynthesisAPI)
     let transitions = List.rev transitions_rev in
     (* (MODIFIED) Gemini용 프롬프트 포맷터 호출 *)
     let prompt = format_prompt_for_gemini key transitions in
-    Api.run_lwt
-      ((* (MODIFIED) Gemini API 호출 함수 사용 *)
-       let* result = Api.call_gemini_api prompt in
-       match result with
-       | Error e ->
-           Printf.eprintf "Gemini API Error for key %s: %s\n"
-             (show_parameterizable_action (snd key))
-             e;
-           Lwt.return_unit
-       | Ok response_str -> (
-           match Api.parse_llm_response response_str with
-           | Error e ->
-               Printf.eprintf "Gemini Response Parsing Error for key %s: %s\n"
-                 (show_parameterizable_action (snd key))
-                 e;
-               Lwt.return_unit
-           | Ok response -> (
-               try
-                 let args =
-                   if response.func_name = "set_to_input_string" then []
-                   else
-                     let args_from_llm = response.args in
-                     let final_args_str =
-                       List.filter
-                         (fun arg_str ->
-                           not (is_var_ref_yojson arg_str var_id_being_updated))
-                         args_from_llm
-                     in
-                     List.map value_of_yojson final_args_str
-                 in
-                 Hashtbl.add synthesized_rules key (response.func_name, args);
-                 Lwt.return_unit
-               with
-               | Failure msg ->
-                   Printf.eprintf "Error converting LLM args to values: %s\n"
-                     msg;
-                   Lwt.return_unit
-               | e ->
-                   Printf.eprintf
-                     "An unexpected error occurred during arg conversion: %s\n"
-                     (Printexc.to_string e);
-                   Lwt.return_unit)))
+    let* result = Api.call_gemini_api prompt in
+    match result with
+    | Error e ->
+        Printf.eprintf "API Error for key %s: %s\n"
+          (show_parameterizable_action (snd key))
+          e;
+        Lwt.return_unit
+    | Ok response_str -> (
+        match Api.parse_llm_response response_str with
+        | Error e ->
+            Printf.eprintf "Parsing Error for key %s: %s\n"
+              (show_parameterizable_action (snd key))
+              e;
+            Lwt.return_unit
+        | Ok response -> (
+            try
+              let args =
+                if response.func_name = "set_to_input_string" then []
+                else
+                  let args_from_llm = response.args in
+                  let final_args_str =
+                    List.filter
+                      (fun arg_str ->
+                        not (is_var_ref_yojson arg_str var_id_being_updated))
+                      args_from_llm
+                  in
+                  List.map value_of_yojson final_args_str
+              in
+              Hashtbl.add synthesized_rules key (response.func_name, args);
+              Lwt.return_unit
+            with
+            | Failure msg ->
+                Printf.eprintf "Arg conversion Error: %s\n" msg;
+                Lwt.return_unit
+            | e ->
+                Printf.eprintf "Unexpected Error: %s\n" (Printexc.to_string e);
+                Lwt.return_unit))
+  in
+  let obs_list = Hashtbl.to_seq observations |> List.of_seq in
+  let* () =
+    Lwt_list.iter_p
+      (fun (key, transitions) -> process_observation (key, transitions))
+      obs_list
   in
 
-  Hashtbl.iter
-    (fun key transitions -> process_observation (key, transitions))
-    observations;
-  synthesized_rules
+  Lwt.return synthesized_rules
 
 type state = var [@@deriving show, eq]
 

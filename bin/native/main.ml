@@ -1,5 +1,6 @@
 open Redemon_lang
 open Redemon_lang.Tree.Syntax
+open Lwt.Infix
 
 let counter_demo =
   Demo.
@@ -90,7 +91,7 @@ let synthesis_test () =
     rules;
   Printf.printf "\n";
   Printf.printf "Synthesizing for Counter Example with llm:\n";
-  let rules = synthesize_with_llm counter_abstraction in
+  synthesize_with_llm counter_abstraction >>= fun rules_llm ->
   Hashtbl.iter
     (fun (var_id, p_action) (fname, args) ->
       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
@@ -98,7 +99,7 @@ let synthesis_test () =
         (show_parameterizable_action p_action)
         fname
         (String.concat ", " (List.map show_value args)))
-    rules;
+    rules_llm;
   Printf.printf "\n";
   let counter_abstraction2 =
     {
@@ -283,10 +284,12 @@ let synthesis_test () =
         (show_parameterizable_action p_action)
         fname
         (String.concat ", " (List.map show_value args)))
-    rules_list
+    rules_list;
+  Lwt.return_unit
 
 let () =
-  synthesis_test |> ignore;
+  Lwt_main.run (synthesis_test ());
+
   let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules

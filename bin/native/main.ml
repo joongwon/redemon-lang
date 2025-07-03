@@ -289,7 +289,6 @@ let synthesis_test () =
 
 let () =
   Lwt_main.run (synthesis_test ());
-
   let abs = Abstract.abstract_demo_multi counter_demo in
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules

@@ -19,40 +19,34 @@ let parse_program_str (program_str : string) : (Syntax.tree, string) Result.t =
   | exception Parser.Error ->
       Error (Printf.sprintf "%s: syntax error" (position lexbuf))
 
-(* In js/main.ml *)
+(* TODO: This should be a library function *)
+let abstract (tree_src : string) (timelines : Demo.demo_timeline list) :
+    (Abstract.abstraction_multi, string) Result.t =
+  let ( let* ) x f = Result.bind x ~f in
+  let* tree = parse_program_str tree_src in
+  let demo = Demo.{ init = tree; timelines } in
+  let abs = Abstract.abstract_demo_multi demo in
+  Ok abs
+
 let synthesize (tree_src : string) (timelines : Demo.demo_timeline list) :
-    (string, string) Result.t Lwt.t =
-  (* 반환 타입이 Lwt.t를 포함하도록 변경 *)
-
-  (* Result 모나드 처리 부분 *)
-  let res =
-    let ( let* ) x f = Result.bind x ~f in
-    let* tree = parse_program_str tree_src in
-    let demo = Demo.{ init = tree; timelines } in
-    let abs = Abstract.abstract_demo_multi demo in
-    Ok abs
+    (string, string) Result.t =
+  let ( let* ) x f = Result.bind x ~f in
+  let* tree = parse_program_str tree_src in
+  let demo = Demo.{ init = tree; timelines } in
+  let abs = Abstract.abstract_demo_multi demo in
+  let result =
+    Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
   in
-
-  match res with
-  | Error e -> Lwt.return (Error e)
-  | Ok abs ->
-      let synthesize_with_llm =
-        Synthesis.Llm_backend.synthesize (module Redemon_with_llm_js.Api)
-      in
-      synthesize_with_llm abs >>= fun rules_ht ->
-      let result = Synthesis.translate_synthesized_rules rules_ht in
-
-      let prog =
-        Codegen.
-          {
-            view = abs.sketch;
-            data =
-              Record (List.map ~f:(fun (v, _) -> (v, Texpr.Access v)) abs.init);
-            handlers = result;
-            states = abs.init;
-          }
-      in
-      Lwt.return_ok (Codegen.js_of_prog prog)
+  let prog =
+    Codegen.
+      {
+        view = abs.sketch;
+        data = Record (List.map ~f:(fun (v, _) -> (v, Texpr.Access v)) abs.init);
+        handlers = result;
+        states = abs.init;
+      }
+  in
+  Ok (Codegen.js_of_prog prog)
 
 let () =
   (* Logs.set_reporter (Logs_browser.console_reporter ()); *)
@@ -75,7 +69,7 @@ let () =
          | Error err ->
              Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
 
-       method synthesize tree_src steps =
+       method prompts tree_src steps =
          Logs.debug (fun m -> m "Steps: %s" steps);
 
          let timelines =
@@ -86,21 +80,43 @@ let () =
          Logs.info (fun m ->
              m "Steps to synthesize: %s"
                ([%show: Demo.demo_timeline list] timelines));
+         (let ( let* ) x f = Result.bind x ~f in
+          let* abstraction = abstract tree_src timelines in
+          let keyed_prompts =
+            Synthesis.Llm_backend.extract_prompts abstraction
+          in
+          Ok keyed_prompts)
+         |> function
+         | Ok keyed_prompts ->
+             let json =
+               keyed_prompts
+               |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                    [%yojson_of: (Synthesis.key * string) list])
+               |> Yojson.Safe.to_string
+             in
+             (* TODO: Maybe separate keys and prompts *)
+             Js.Unsafe.obj
+               [| ("prompts", json |> Js.string |> Js.Unsafe.inject) |]
+         | Error err ->
+             Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
 
-         let result_lwt = synthesize tree_src timelines in
+       method synthesize tree_src steps =
+         (* Use JSON-encoded string of demo_step list *)
+         Logs.debug (fun m -> m "Steps: %s" steps);
 
-         Promise_lwt.to_promise
-           ( result_lwt >>= function
-             | Ok js_code ->
-                 let js_obj =
-                   Js.Unsafe.obj
-                     [| ("code", js_code |> Js.string |> Js.Unsafe.inject) |]
-                 in
-                 Lwt.return js_obj
-             | Error err ->
-                 let js_obj =
-                   Js.Unsafe.obj
-                     [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
-                 in
-                 Lwt.return js_obj )
+         let steps =
+           steps |> Yojson.Safe.from_string
+           |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                [%of_yojson: Demo.demo_step list list])
+         in
+         Logs.info (fun m ->
+             m "Steps to synthesize: %s"
+               ([%show: Demo.demo_step list list] steps));
+
+         synthesize tree_src steps |> function
+         | Ok js_code ->
+             Js.Unsafe.obj
+               [| ("code", js_code |> Js.string |> Js.Unsafe.inject) |]
+         | Error err ->
+             Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
     end)

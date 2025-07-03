@@ -220,14 +220,14 @@ module Candidate = struct
 end
 
 type parameterizable_action = P_Click of label | P_Input of label
-[@@deriving show]
+[@@deriving show, yojson]
 
 let to_param_action : action -> parameterizable_action = function
   | { label = l; action_type = Click; _ } -> P_Click l
   | { label = l; action_type = Input; _ } -> P_Input l
 
 (* TODO: Why not use action directly? *)
-type key = var * parameterizable_action
+type key = var * parameterizable_action [@@deriving yojson]
 type synthesized_function = string * value list
 
 (* value 변화도 부품 *)
@@ -722,6 +722,8 @@ module Llm_backend = struct
 
     synthesized_rules
 
+  (* TODO: We may not even need this if we can handle the API call directly in
+     the frontend *)
   let synthesize (module Api : Api) (abs : abstraction_multi) :
       (key, synthesized_function) Hashtbl.t Lwt.t =
     let process_prompt (key, prompt) =

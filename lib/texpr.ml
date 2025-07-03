@@ -1,6 +1,7 @@
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives
 open Tree.Syntax
 
-type var = Var of int [@@unboxed] [@@deriving eq, show]
+type var = Var of int [@@unboxed] [@@deriving eq, show, yojson]
 
 (* an expression accepting single record (namely, 'root') as an environment *)
 type expr =

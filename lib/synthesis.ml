@@ -139,62 +139,61 @@ type synthesized_function = string * value list
 let extract_related_components (old_val : value) (new_val : value) : value list
     =
   match (old_val, new_val) with
-  (* 1. 정수 관계 *)
   | Const (Int i1), Const (Int i2) ->
-      let components = ref [] in
-      (* 덧셈/뺄셈 관계 *)
-      if i1 <> i2 then components := Const (Int (i2 - i1)) :: !components;
-      (* 곱셈/나눗셈 관계 *)
-      if i1 <> 0 && i2 mod i1 = 0 then
-        components := Const (Int (i2 / i1)) :: !components;
-      !components
-  (* 2. 문자열 관계 *)
+      (* NOTE: Integer relation *)
+      (if i1 <> i2 then (* addition/subtraction change *)
+         [ Const (Int (i2 - i1)) ]
+       else [])
+      @
+      if i1 <> 0 && i2 mod i1 = 0 then (* multiplication/division change *)
+        (* NOTE: i2 / i1 results in a float in JS if i2 mod i1 <> 0,
+           but we assume integer division here *)
+        [ Const (Int (i2 / i1)) ]
+      else []
   | Const (String s1), Const (String s2) ->
-      let components = ref [] in
+      (* NOTE: String relation *)
       let len1 = String.length s1 in
       let len2 = String.length s2 in
       (* 접미사(suffix)가 추가된 경우 *)
       (if len2 > len1 && String.starts_with ~prefix:s1 s2 then
          let suffix = String.sub s2 len1 (len2 - len1) in
-         components := Const (String suffix) :: !components);
+         [ Const (String suffix) ]
+       else [])
+      @
       (* 접두사(prefix)가 추가된 경우 *)
-      (if len2 > len1 && String.ends_with ~suffix:s1 s2 then
-         let prefix = String.sub s2 0 (len2 - len1) in
-         components := Const (String prefix) :: !components);
-      !components
+      if len2 > len1 && String.ends_with ~suffix:s1 s2 then
+        let prefix = String.sub s2 0 (len2 - len1) in
+        [ Const (String prefix) ]
+      else []
   (* 3. 리스트 관계 *)
   | List l1, List l2 ->
-      let components = ref [] in
       let len1 = List.length l1 in
       let len2 = List.length l2 in
       (* 원소가 맨 앞에 추가(push)된 경우 *)
       (if len2 = len1 + 1 then
          match l2 with
-         | hd :: tl when equal_value (List tl) (List l1) ->
-             components := hd :: !components
-         | _ -> ());
+         | hd :: tl when equal_value (List tl) (List l1) -> [ hd ]
+         | _ -> []
+       else [])
+      @
       (* 원소가 맨 뒤에 추가된 경우  *)
-      (if len2 = len1 + 1 then
-         let rec get_last_and_init = function
-           | [] -> None
-           | [ x ] -> Some ([], x)
-           | h :: t -> (
-               match get_last_and_init t with
-               | Some (init, last) -> Some (h :: init, last)
-               | None -> None)
-         in
-         match get_last_and_init l2 with
-         | Some (init, last) when equal_value (List init) (List l1) ->
-             components := last :: !components
-         | _ -> ());
-
-      !components
+      if len2 = len1 + 1 then
+        let rec get_last_and_init = function
+          | [] -> None
+          | [ x ] -> Some ([], x)
+          | h :: t -> (
+              match get_last_and_init t with
+              | Some (init, last) -> Some (h :: init, last)
+              | None -> None)
+        in
+        match get_last_and_init l2 with
+        | Some (init, last) when equal_value (List init) (List l1) -> [ last ]
+        | _ -> []
+      else []
   | _, _ -> []
 
-let synthesize (abstraction_data : abstraction_multi) :
+let synthesize ({ init; timelines; _ } : abstraction_multi) :
     (var * parameterizable_action, synthesized_function) Hashtbl.t =
-  let { init; timelines; _ } = abstraction_data in
-
   (* 1. 모든 고유 변수 및 컴포넌트(상수) 수집 *)
   let all_vars_list = ref (List.map fst init) in
   let components = ref [] in

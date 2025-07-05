@@ -1,6 +1,7 @@
 open! Base
 open Redemon_lang.Tree
 open Redemon_lang
+open Lwt.Infix
 
 let position (lexbuf : Lexing.lexbuf) : string =
   let open Lexing in
@@ -17,6 +18,15 @@ let parse_program_str (program_str : string) : (Syntax.tree, string) Result.t =
   | prog -> Ok prog
   | exception Parser.Error ->
       Error (Printf.sprintf "%s: syntax error" (position lexbuf))
+
+(* TODO: This should be a library function *)
+let abstract (tree_src : string) (timelines : Demo.demo_timeline list) :
+    (Abstract.abstraction_multi, string) Result.t =
+  let ( let* ) x f = Result.bind x ~f in
+  let* tree = parse_program_str tree_src in
+  let demo = Demo.{ init = tree; timelines } in
+  let abs = Abstract.abstract_demo_multi demo in
+  Ok abs
 
 let synthesize (tree_src : string) (timelines : Demo.demo_timeline list) :
     (string, string) Result.t =
@@ -56,6 +66,37 @@ let () =
                prog |> Syntax.yojson_of_tree |> Yojson.Safe.to_string
              in
              Js.Unsafe.global##._JSON##parse json_str
+         | Error err ->
+             Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
+
+       method prompts tree_src steps =
+         Logs.debug (fun m -> m "Steps: %s" steps);
+
+         let timelines =
+           steps |> Yojson.Safe.from_string
+           |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                [%of_yojson: Demo.demo_timeline list])
+         in
+         Logs.info (fun m ->
+             m "Steps to synthesize: %s"
+               ([%show: Demo.demo_timeline list] timelines));
+         (let ( let* ) x f = Result.bind x ~f in
+          let* abstraction = abstract tree_src timelines in
+          let keyed_prompts =
+            Synthesis.Llm_backend.extract_prompts abstraction
+          in
+          Ok keyed_prompts)
+         |> function
+         | Ok keyed_prompts ->
+             let json =
+               keyed_prompts
+               |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                    [%yojson_of: (Synthesis.key * string) list])
+               |> Yojson.Safe.to_string
+             in
+             (* TODO: Maybe separate keys and prompts *)
+             Js.Unsafe.obj
+               [| ("prompts", json |> Js.string |> Js.Unsafe.inject) |]
          | Error err ->
              Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
 

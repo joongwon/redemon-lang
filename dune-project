@@ -17,8 +17,12 @@
   dune
   base
   logs
+  tls-lwt
+  cohttp-lwt-unix
   js_of_ocaml
   js_of_ocaml-ppx
+  js_of_ocaml-lwt
+  promise_jsoo_lwt
   ppx_deriving
   yojson
   ppx_yojson_conv

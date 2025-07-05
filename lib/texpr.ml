@@ -1,6 +1,7 @@
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives
 open Tree.Syntax
 
-type var = Var of int [@@unboxed] [@@deriving eq, show]
+type var = Var of int [@@unboxed] [@@deriving eq, show, yojson]
 
 (* an expression accepting single record (namely, 'root') as an environment *)
 type expr =
@@ -39,6 +40,15 @@ type value =
   | Record of record
 
 and record = (var * value) list [@@deriving eq, show]
+
+exception NotFound of string
+
+let lookup ~(var : var) (r : record) : value =
+  try List.assoc var r
+  with Not_found ->
+    raise
+      (NotFound
+         (Printf.sprintf "Variable %s not found in record" (show_var var)))
 
 (* definitional interpreter for expressions *)
 let rec eval (e : expr) (root : record) : value =

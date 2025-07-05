@@ -2,11 +2,10 @@ open Tree.Syntax
 open Texpr
 open Demo
 open Abstract
+open Lwt.Syntax
 
-(* list function:
-  map, concat, length
-  TODO: filter(find)
-*)
+(* list function: map, concat, length
+ * TODO: filter(find) *)
 
 exception TypeError of string
 exception LengthError of string
@@ -16,122 +15,219 @@ exception SynthesisConflict of string
 exception SynthesisFailed of string
 exception ParameterLengthError of string
 
-(* Fuction candidate *)
-let map (l : value) (f : value -> value) : value =
-  match l with
-  | List l -> List (List.map f l)
-  | _ -> raise (TypeError "Map: Expected a list")
+module Candidate = struct
+  let map (l : value) (f : value -> value) : value =
+    match l with
+    | List l -> List (List.map f l)
+    | _ -> raise (TypeError "Map: Expected a list")
 
-let concat_list (l1 : value) (l2 : value) : value =
-  match (l1, l2) with
-  | List l1, List l2 -> List (l1 @ l2)
-  | _ -> raise (TypeError "Concat: Expected two lists")
+  let concat_list (l1 : value) (l2 : value) : value =
+    match (l1, l2) with
+    | List l1, List l2 -> List (l1 @ l2)
+    | _ -> raise (TypeError "Concat: Expected two lists")
 
-let length (l : value) : value =
-  match l with
-  | List l -> Const (Int (List.length l))
-  | _ -> raise (TypeError "Length: Expected a list")
+  let length (l : value) : value =
+    match l with
+    | List l -> Const (Int (List.length l))
+    | _ -> raise (TypeError "Length: Expected a list")
 
-let filter (l : value) (f : value -> bool) : value =
-  match l with
-  | List l -> List (List.filter f l)
-  | _ -> raise (TypeError "Filter: Expected a list")
+  let filter (l : value) (f : value -> bool) : value =
+    match l with
+    | List l -> List (List.filter f l)
+    | _ -> raise (TypeError "Filter: Expected a list")
 
-let find (l : value) (f : value -> bool) : value =
-  match l with
-  | List l ->
-      let rec aux = function
-        | [] -> raise (NotFound "Find: Not found")
-        | x :: xs -> if f x then x else aux xs
-      in
-      aux l
-  | _ -> raise (TypeError "Find: Expected a list")
+  let find (l : value) (f : value -> bool) : value =
+    match l with
+    | List l ->
+        let rec aux = function
+          | [] -> raise (NotFound "Find: Not found")
+          | x :: xs -> if f x then x else aux xs
+        in
+        aux l
+    | _ -> raise (TypeError "Find: Expected a list")
 
-(* record function *)
+  let push (v1 : value) (v2 : value) : value =
+    match v1 with
+    | List l -> List (v2 :: l)
+    | _ -> raise (TypeError "Push: Expected a list and a record")
 
-let push (v1 : value) (v2 : value) : value =
-  match v1 with
-  | List l -> List (v2 :: l)
-  | _ -> raise (TypeError "Push: Expected a list and a record")
+  let pop (v1 : value) : value =
+    match v1 with
+    | List [] -> raise (LengthError "Pop: Cannot pop from an empty list")
+    | List (_ :: l) -> List l
+    | _ -> raise (TypeError "Pop: Expected a list")
 
-let pop (v1 : value) : value =
-  match v1 with
-  | List [] -> raise (LengthError "Pop: Cannot pop from an empty list")
-  | List (_ :: l) -> List l
-  | _ -> raise (TypeError "Pop: Expected a list")
+  let set_to_const_int (v_new_int_const : value) : value =
+    match v_new_int_const with
+    | Const (Int i) -> Const (Int i)
+    | _ -> raise (TypeError "SetToConstInt: Expected an integer constant")
 
-(* interger function *)
+  let plus (v1 : value) (v2 : value) : value =
+    match (v1, v2) with
+    | Const (Int i1), Const (Int i2) -> Const (Int (i1 + i2))
+    | _ -> raise (TypeError "Plus: Expected two integers")
 
-let set_to_const_int (v_new_int_const : value) : value =
-  match v_new_int_const with
-  | Const (Int i) -> Const (Int i)
-  | _ -> raise (TypeError "SetToConstInt: Expected an integer constant")
+  let minus (v1 : value) (v2 : value) : value =
+    match (v1, v2) with
+    | Const (Int i1), Const (Int i2) -> Const (Int (i1 - i2))
+    | _ -> raise (TypeError "Minus: Expected two integers")
 
-let plus (v1 : value) (v2 : value) : value =
-  match (v1, v2) with
-  | Const (Int i1), Const (Int i2) -> Const (Int (i1 + i2))
-  | _ -> raise (TypeError "Plus: Expected two integers")
+  let times (v1 : value) (v2 : value) : value =
+    match (v1, v2) with
+    | Const (Int i1), Const (Int i2) -> Const (Int (i1 * i2))
+    | _ -> raise (TypeError "Times: Expected two integers")
 
-let minus (v1 : value) (v2 : value) : value =
-  match (v1, v2) with
-  | Const (Int i1), Const (Int i2) -> Const (Int (i1 - i2))
-  | _ -> raise (TypeError "Minus: Expected two integers")
+  let divide (v1 : value) (v2 : value) : value =
+    match (v1, v2) with
+    | Const (Int i1), Const (Int i2) ->
+        if i2 = 0 then raise (InvalidOperation "divide: divide with 0")
+        else Const (Int (i1 / i2))
+    | _ -> raise (TypeError "Divide: Expected two integers")
 
-let times (v1 : value) (v2 : value) : value =
-  match (v1, v2) with
-  | Const (Int i1), Const (Int i2) -> Const (Int (i1 * i2))
-  | _ -> raise (TypeError "Times: Expected two integers")
+  let change_string_to (v_target_type : value) (s_new_val : string) : value =
+    match v_target_type with
+    | Const (String _) -> Const (String s_new_val)
+    | _ -> raise (TypeError "ChangeStringTo: Expected a string constant")
 
-let divide (v1 : value) (v2 : value) : value =
-  match (v1, v2) with
-  | Const (Int i1), Const (Int i2) ->
-      if i2 = 0 then raise (InvalidOperation "divide: divide with 0")
-      else Const (Int (i1 / i2))
-  | _ -> raise (TypeError "Divide: Expected two integers")
+  (* 값을 특정 상수 문자열(구성 요소)로 설정하기 위함 *)
+  let set_to_const_string (_v_old : value) (v_new_string_const : value) : value
+      =
+    match v_new_string_const with
+    | Const (String s) -> Const (String s)
+    | _ -> raise (TypeError "SetToConstString: Expected a string constant")
 
-(* string function *)
+  let change_string (v1 : value) (s : string) : value =
+    match v1 with
+    | Const (String _) -> Const (String s)
+    | _ -> raise (TypeError "ChangeString: Expected a string constant")
 
-let change_string_to (v_target_type : value) (s_new_val : string) : value =
-  match v_target_type with
-  | Const (String _) -> Const (String s_new_val)
-  | _ -> raise (TypeError "ChangeStringTo: Expected a string constant")
+  let concat_str (v1 : value) (v2 : value) : value =
+    match (v1, v2) with
+    | Const (String s1), Const (String s2) -> Const (String (s1 ^ s2))
+    | _ -> raise (TypeError "ConcatStr: Expected two string constants")
 
-(* 값을 특정 상수 문자열(구성 요소)로 설정하기 위함 *)
-let set_to_const_string (_v_old : value) (v_new_string_const : value) : value =
-  match v_new_string_const with
-  | Const (String s) -> Const (String s)
-  | _ -> raise (TypeError "SetToConstString: Expected a string constant")
-
-let change_string (v1 : value) (s : string) : value =
-  match v1 with
-  | Const (String _) -> Const (String s)
-  | _ -> raise (TypeError "ChangeString: Expected a string constant")
-
-let concat_str (v1 : value) (v2 : value) : value =
-  match (v1, v2) with
-  | Const (String s1), Const (String s2) -> Const (String (s1 ^ s2))
-  | _ -> raise (TypeError "ConcatStr: Expected two string constants")
-
-(* Fuction candidate  end *)
-let lookup_val (v_id : var) (r : record) : value =
-  try List.assoc v_id r
-  with Not_found ->
-    raise
-      (NotFound
-         (Printf.sprintf "Variable %s not found in record" (show_var v_id)))
+  let func_to_js (fname : string) (expr_l : string list) : string =
+    match fname with
+    | "map" -> (
+        match expr_l with
+        | [ l_expr; f_expr ] -> Printf.sprintf "(%s).map(%s)" l_expr f_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "Map: Expected 2 arguments (list_expr, function_expr)"))
+    | "concat_list" -> (
+        match expr_l with
+        | [ l1_expr; l2_expr ] ->
+            Printf.sprintf "[...%s, ...%s]" l1_expr l2_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "ConcatList: Expected 2 arguments (list1_expr, list2_expr)"))
+    | "length" -> (
+        match expr_l with
+        | [ l_expr ] -> Printf.sprintf "(%s).length" l_expr
+        | _ ->
+            raise
+              (ParameterLengthError "Length: Expected 1 argument (list_expr)"))
+    | "filter" -> (
+        match expr_l with
+        | [ l_expr; f_expr ] -> Printf.sprintf "(%s).filter(%s)" l_expr f_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "Filter: Expected 2 arguments (list_expr, function_expr)"))
+    | "find" -> (
+        match expr_l with
+        | [ l_expr; f_expr ] -> Printf.sprintf "(%s).find(%s)" l_expr f_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "Find: Expected 2 arguments (list_expr, function_expr)"))
+    | "push" -> (
+        match expr_l with
+        | [ l_expr; item_expr ] -> Printf.sprintf "[%s, ...%s]" item_expr l_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "Push: Expected 2 arguments (list_expr, item_expr)"))
+    | "pop" -> (
+        match expr_l with
+        | [ l_expr ] -> Printf.sprintf "(%s).slice(1)" l_expr
+        | _ ->
+            raise (ParameterLengthError "Pop: Expected 1 argument (list_expr)"))
+    | "plus" -> (
+        match expr_l with
+        | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s + %s)" v1_expr v2_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "Plus: Expected 2 arguments (val1_expr, val2_expr)"))
+    | "minus" -> (
+        match expr_l with
+        | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s - %s)" v1_expr v2_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "Minus: Expected 2 arguments (val1_expr, val2_expr)"))
+    | "times" -> (
+        match expr_l with
+        | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s * %s)" v1_expr v2_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "Times: Expected 2 arguments (val1_expr, val2_expr)"))
+    | "divide" -> (
+        match expr_l with
+        | [ v1_expr; v2_expr ] ->
+            Printf.sprintf "((%s / %s) | 0)" v1_expr v2_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "Divide: Expected 2 arguments (val1_expr, val2_expr)"))
+    | "change_string_to" -> (
+        match expr_l with
+        | [ _target_type_expr; new_s_expr ] -> new_s_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "ChangeStringTo: Expected 2 arguments (target_type_expr, \
+                  new_string_expr)"))
+    | "set_to_const_string" -> (
+        match expr_l with
+        | [ _v_old_expr; new_s_const_expr ] -> new_s_const_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "SetToConstString: Expected 2 arguments (old_val_expr, \
+                  new_string_const_expr)"))
+    | "change_string" -> (
+        match expr_l with
+        | [ _v1_expr; s_expr ] -> s_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "ChangeString: Expected 2 arguments (val1_expr, \
+                  new_string_expr)"))
+    | "concat_str" -> (
+        match expr_l with
+        | [ s1_expr; s2_expr ] -> Printf.sprintf "(%s + %s)" s1_expr s2_expr
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "ConcatStr: Expected 2 arguments (string1_expr, string2_expr)")
+        )
+    | _ -> failwith ("Unknown function for JS translation: " ^ fname)
+end
 
 type parameterizable_action = P_Click of label | P_Input of label
+[@@deriving show, yojson]
 
-let show_parameterizable_action (p_act : parameterizable_action) : string =
-  match p_act with
-  | P_Click l -> Printf.sprintf "Click(%s)" (show_label l)
-  | P_Input l -> Printf.sprintf "Input(%s)" (show_label l)
-
-let to_param_action (act : action) : parameterizable_action =
-  match act with
+let to_param_action : action -> parameterizable_action = function
   | { label = l; action_type = Click; _ } -> P_Click l
   | { label = l; action_type = Input; _ } -> P_Input l
 
+(* TODO: Why not use action directly? *)
+type key = var * parameterizable_action [@@deriving yojson]
 type synthesized_function = string * value list
 
 (* value 변화도 부품 *)
@@ -140,18 +236,16 @@ let extract_related_components (old_val : value) (new_val : value) : value list
     =
   match (old_val, new_val) with
   | Const (Int i1), Const (Int i2) ->
-      (* NOTE: Integer relation *)
       (if i1 <> i2 then (* addition/subtraction change *)
          [ Const (Int (i2 - i1)) ]
        else [])
       @
       if i1 <> 0 && i2 mod i1 = 0 then (* multiplication/division change *)
-        (* NOTE: i2 / i1 results in a float in JS if i2 mod i1 <> 0,
-           but we assume integer division here *)
+        (* NOTE: i2 / i1 results in a float in JS if i2 mod i1 <> 0, but we
+           assume integer division here *)
         [ Const (Int (i2 / i1)) ]
       else []
   | Const (String s1), Const (String s2) ->
-      (* NOTE: String relation *)
       let len1 = String.length s1 in
       let len2 = String.length s2 in
       (* 접미사(suffix)가 추가된 경우 *)
@@ -165,18 +259,17 @@ let extract_related_components (old_val : value) (new_val : value) : value list
         let prefix = String.sub s2 0 (len2 - len1) in
         [ Const (String prefix) ]
       else []
-  (* 3. 리스트 관계 *)
   | List l1, List l2 ->
       let len1 = List.length l1 in
       let len2 = List.length l2 in
-      (* 원소가 맨 앞에 추가(push)된 경우 *)
+      (* prepended *)
       (if len2 = len1 + 1 then
          match l2 with
          | hd :: tl when equal_value (List tl) (List l1) -> [ hd ]
          | _ -> []
        else [])
       @
-      (* 원소가 맨 뒤에 추가된 경우  *)
+      (* appended *)
       if len2 = len1 + 1 then
         let rec get_last_and_init = function
           | [] -> None
@@ -193,10 +286,13 @@ let extract_related_components (old_val : value) (new_val : value) : value list
   | _, _ -> []
 
 let synthesize ({ init; timelines; _ } : abstraction_multi) :
-    (var * parameterizable_action, synthesized_function) Hashtbl.t =
+    (key, synthesized_function) Hashtbl.t =
   (* 1. 모든 고유 변수 및 컴포넌트(상수) 수집 *)
-  let all_vars_list = ref (List.map fst init) in
-  let components = ref [] in
+
+  (* TODO: Refactor using a set *)
+  let components =
+    ref (List.map (fun v -> Const v) [ Int 0; Int 1; Int ~-1; String "" ])
+  in
 
   let add_const_to_components v =
     match v with
@@ -211,16 +307,15 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
 
   List.iter (fun (_, v) -> add_const_to_components v) init;
 
-  List.iter
-    (fun timeline ->
-      List.iter
-        (fun (_, r) ->
-          all_vars_list := List.map fst r @ !all_vars_list;
-          List.iter (fun (_, v) -> add_const_to_components v) r)
-        timeline)
-    timelines;
-
-  let all_vars = List.sort_uniq compare !all_vars_list in
+  let all_vars =
+    let all_vars_ref = ref (List.map fst init) in
+    List.iter
+      (List.iter (fun (_, r) ->
+           all_vars_ref := List.map fst r @ !all_vars_ref;
+           List.map snd r |> List.iter add_const_to_components))
+      timelines;
+    List.sort_uniq compare !all_vars_ref
+  in
 
   (* 모든 타임라인에서 관찰 결과 수집 *)
   (* key: (var_id, p_action), value: (old_val, new_val, actual_action) list *)
@@ -228,44 +323,29 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
 
   (* 각 타임라인은 독립적으로 초기 상태(init)에서 시작 *)
   List.iter
-    (fun timeline ->
-      let current_s = ref init in
-      List.iter
-        (fun (act, next_s) ->
-          let prev_s = !current_s in
-          let p_act = to_param_action act in
-          List.iter
-            (fun v_id ->
-              try
-                let old_val = lookup_val v_id prev_s in
-                let new_val = lookup_val v_id next_s in
-                let key = (v_id, p_act) in
-                let existing_obs =
-                  try Hashtbl.find observations key with Not_found -> []
-                in
-                (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
-                Hashtbl.replace observations key
-                  ((old_val, new_val, act) :: existing_obs)
-              with NotFound _ -> ())
-            all_vars;
-          current_s := next_s)
-        timeline)
+    (let current_s = ref init in
+     List.iter (fun (act, next_s) ->
+         let prev_s = !current_s in
+         let p_act = to_param_action act in
+         List.iter
+           (fun var ->
+             try
+               let old_val = lookup ~var prev_s in
+               let new_val = lookup ~var next_s in
+               let key = (var, p_act) in
+               let existing_obs =
+                 try Hashtbl.find observations key with Not_found -> []
+               in
+               (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
+               Hashtbl.replace observations key
+                 ((old_val, new_val, act) :: existing_obs)
+             with NotFound _ -> ())
+           all_vars;
+         current_s := next_s))
     timelines;
 
-  (* add default value *)
-  add_const_to_components (Const (Int 0));
-  add_const_to_components (Const (Int 1));
-  add_const_to_components (Const (Int (-1)));
-  add_const_to_components (Const (String ""));
-
-  (* helper function *)
-  let add_const_to_components v =
-    match v with
-    | Const c -> components := Const c :: !components
-    | Record r_val -> components := Record r_val :: !components
-    | _ -> ()
-  in
   let add_components_from_list l = List.iter add_const_to_components l in
+
   (* step 2.5: value 변화 추출 *)
   Hashtbl.iter
     (fun _key transitions ->
@@ -287,17 +367,17 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
   let synthesized_rules = Hashtbl.create (Hashtbl.length observations) in
 
   Hashtbl.iter
-    (fun (key : var * parameterizable_action)
-         (transitions_rev : (value * value * action) list) ->
+    (fun (key : key) (transitions_rev : (value * value * action) list) ->
       let transitions = List.rev transitions_rev in
-      (* 
-    Printf.printf "Synthesizing for key: (%s, %s) with %d transitions\n"
-      (show_var (fst key)) (show_parameterizable_action (snd key)) (List.length transitions);
-    List.iter (fun (ov,nv,a) -> Printf.printf "  %s -> %s (action: %s)\n" (show_value ov) (show_value nv) (show_action a)) transitions;
-    *)
+      (* Printf.printf "Synthesizing for key: (%s, %s) with %d transitions\n"
+         (show_var (fst key)) (show_parameterizable_action (snd key))
+         (List.length transitions); List.iter (fun (ov,nv,a) -> Printf.printf "
+         %s -> %s (action: %s)\n" (show_value ov) (show_value nv) (show_action
+         a)) transitions; *)
 
       let v_id_checking, p_action_checking = key in
 
+      let open Candidate in
       (* 시도할 후보 연산 정의 *)
       (* (연산자 이름, (이전값 -> 새값 -> bool) 검사 함수, [인자 리스트] 옵션) *)
       let candidate_ops :
@@ -382,7 +462,9 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
              transitions
          in
          if all_match_input_set && transitions <> [] then
-           (* Printf.printf "  SUCCESS with set_to_input_string for key (%s, %s)\n" (show_var v_id_checking) (show_parameterizable_action p_action_checking); *)
+           (* Printf.printf " SUCCESS with set_to_input_string for key (%s,
+              %s)\n" (show_var v_id_checking) (show_parameterizable_action
+              p_action_checking); *)
            found_rule := Some ("set_to_input_string", []));
 
       (* 다른 후보 연산 시도 *)
@@ -420,13 +502,246 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
               (show_var v_id_checking)
               (show_parameterizable_action p_action_checking)
               (List.length transitions)
-      (* 또는 예외 발생:
-        raise (SynthesisFailed (Printf.sprintf "For key (%s, %s), no single function explained all transitions."
-          (show_var v_id_checking) (show_parameterizable_action p_action_checking)))
-        *))
+      (* 또는 예외 발생: raise (SynthesisFailed (Printf.sprintf "For key (%s, %s), no
+         single function explained all transitions." (show_var v_id_checking)
+         (show_parameterizable_action p_action_checking))) *))
     observations;
 
   synthesized_rules
+
+module Llm_backend = struct
+  let system_instruction =
+    "You are a program synthesis expert. Your task is to find a single \
+     function call that explains a series of state changes."
+
+  let promptify ((var_id, p_action) : key)
+      (transitions : (value * value * action) list) : string =
+    let action_desc =
+      match p_action with
+      | P_Click l ->
+          Printf.sprintf "user CLICKS the element with label {%s}"
+            (show_label l)
+      | P_Input l ->
+          Printf.sprintf "user INPUTS text into the element with label {%s}"
+            (show_label l)
+    in
+    let transitions_str =
+      transitions
+      |> List.map (fun (old_val, new_val, act) ->
+             let input_info =
+               match act with
+               | { action_type = Input; arg = Some s; _ } ->
+                   Printf.sprintf " with input {%s}" s
+               | _ -> ""
+             in
+             Printf.sprintf "  - From {%s} to {%s}%s" (show_value old_val)
+               (show_value new_val) input_info)
+      |> String.concat "\n"
+    in
+    let function_library =
+      {|Available functions:
+  - plus(val, num): Returns val + num.
+  - minus(val, num): Returns val - num.
+  - pop(list): Removes the first element of a list.
+  - push(list, item): Adds an item to the front of a list.
+  - concat_str(str1, str2): Concatenates two strings.
+  - set_to_const_string(old_val, new_str_const): Sets the value to a new string constant.
+  - set_to_input_string(old_val): Sets the value to the string provided by the user's input action. The user input is provided in the examples.|}
+    in
+
+    Printf.sprintf
+      "A variable '%s' changes its value when %s.\n\
+       Here are the observed transitions:\n\
+       %s\n\n\
+       %s\n\n\
+       Based on these examples, what single function call updates the old \
+       value to the new value?\n\
+       The first argument to the function is always the old value of the \
+       variable '%s'.\n\
+       For 'set_to_input_string', the function takes only one argument (the \
+       old value), and you must infer its usage from the examples.\n\
+       For other functions, if they need a constant argument (like a number or \
+       a string), provide that constant value.\n\n\
+       Your response MUST be a single, valid JSON object in the following \
+       format, and nothing else:\n\
+       {\"function\": \"<function_name>\", \"args\": [<arg1>, <arg2>, ...]}"
+      (show_var var_id) action_desc transitions_str function_library
+      (show_var var_id)
+
+  let rec value_of_yojson (json : Yojson.Basic.t) : value =
+    match json with
+    | `Int i -> Const (Int i)
+    | `Float f ->
+        (* JSON은 보통 숫자를 float으로 다루므로, 정수로 변환해줍니다. *)
+        Const (Int (int_of_float f))
+    | `String s -> Const (String s)
+    | `List l ->
+        (* JSON 리스트의 각 원소에 대해 재귀적으로 변환을 적용합니다. *)
+        List (List.map value_of_yojson l)
+    | `Assoc o ->
+        (* JSON 객체는 우리 시스템의 'Record' 타입으로 변환합니다. *)
+        (* 키(key)는 문자열 형태이므로, 이를 'Var' 타입으로 변환해야 합니다. *)
+        let record_items =
+          List.map
+            (fun (key_str, v_json) ->
+              try
+                (* "1", "2"와 같은 문자열 키를 Var 1, Var 2로 변환 *)
+                let var_id = Var (int_of_string key_str) in
+                let value_item = value_of_yojson v_json in
+                (var_id, value_item)
+              with Failure _ ->
+                failwith
+                  (Printf.sprintf
+                     "Invalid record key in LLM response: '%s'. Key must be a \
+                      string representing an integer."
+                     key_str))
+            o
+        in
+        Record record_items
+    | `Null -> Null
+    | `Bool _ -> failwith "Boolean to 'value' conversion is not implemented."
+
+  let is_var_ref_yojson (arg_json : Yojson.Basic.t) (var_id : var) : bool =
+    let (Var target_id) = var_id in
+    let target_id_str = string_of_int target_id in
+
+    try
+      match arg_json with
+      (* LLM이 숫자로 반환한 경우: 1 *)
+      | `Int _ -> false
+      (* LLM이 문자열로 반환한 경우: "1", "Var(1)", "(Texpr.Var 1)" 등 *)
+      | `String s ->
+          let s = String.trim s in
+          (* "Var(1)" 또는 "(Texpr.Var 1)" 패턴 *)
+          if
+            Str.string_match (Str.regexp "Var(\\([0-9]+\\))") s 0
+            || Str.string_match (Str.regexp "(Texpr.Var \\([0-9]+\\))") s 0
+          then int_of_string (Str.matched_group 1 s) = target_id
+          (* 그냥 숫자 문자열 "1" *)
+            else s = target_id_str
+      | _ -> false
+    with _ -> false
+
+  type response = { func_name : string; args : Yojson.Basic.t list }
+
+  let parse_response (json_str : string) =
+    try
+      let clean_json_str =
+        if String.starts_with ~prefix:"```json" json_str then
+          let s = String.sub json_str 7 (String.length json_str - 10) in
+          String.trim s
+        else json_str
+      in
+      let json = Yojson.Basic.from_string clean_json_str in
+
+      let open Yojson.Basic.Util in
+      let func_name = json |> member "function" |> to_string in
+      let args = json |> member "args" |> to_list in
+      Ok { func_name; args }
+    with e ->
+      Error
+        (Printf.sprintf "Failed to parse LLM response: %s. Raw: %s"
+           (Printexc.to_string e) json_str)
+
+  let extract_function_from_response ~(var : var) (response : response) =
+    let args =
+      if response.func_name = "set_to_input_string" then []
+      else
+        response.args
+        |> List.filter (fun arg_json -> not (is_var_ref_yojson arg_json var))
+        |> List.map value_of_yojson
+    in
+    (response.func_name, args)
+
+  module type Api = sig
+    val call_gemini_api : string -> (string, string) Lwt_result.t
+  end
+
+  let extract_prompts ({ init; timelines; _ } : abstraction_multi) :
+      (key * string) list =
+    let all_vars =
+      let all_vars_ref = ref (List.map fst init) in
+      List.iter
+        (List.iter (fun (_, r) ->
+             all_vars_ref := List.map fst r @ !all_vars_ref))
+        timelines;
+      List.sort_uniq compare !all_vars_ref
+    in
+
+    (* 1. 관찰 결과 수집 (기존과 동일) *)
+    let observations = Hashtbl.create (List.length all_vars * 5) in
+
+    (* 각 타임라인은 독립적으로 초기 상태(init)에서 시작 *)
+    List.iter
+      (let current_s = ref init in
+       List.iter (fun (act, next_s) ->
+           let prev_s = !current_s in
+           let p_act = to_param_action act in
+           List.iter
+             (fun var ->
+               try
+                 let old_val = lookup ~var prev_s in
+                 let new_val = lookup ~var next_s in
+                 let key = (var, p_act) in
+                 let existing_obs =
+                   try Hashtbl.find observations key with Not_found -> []
+                 in
+                 (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
+                 Hashtbl.replace observations key
+                   ((old_val, new_val, act) :: existing_obs)
+               with NotFound _ -> ())
+             all_vars;
+           current_s := next_s))
+      timelines;
+
+    let process_observation (key, transitions_rev) =
+      let transitions = List.rev transitions_rev in
+      (key, promptify key transitions)
+    in
+    observations |> Hashtbl.to_seq |> List.of_seq
+    |> List.map process_observation
+
+  let synthesize_from_response (keyed_responses : (key * string) list) :
+      (key, synthesized_function) Hashtbl.t =
+    let synthesized_rules =
+      (* Better size guess? *)
+      Hashtbl.create (List.length keyed_responses)
+    in
+
+    List.iter
+      (fun (key, response_str) ->
+        match parse_response response_str with
+        | Ok response ->
+            let func = extract_function_from_response ~var:(fst key) response in
+            Hashtbl.add synthesized_rules key func
+        | Error e ->
+            Printf.eprintf "API Error for key %s: %s\n"
+              (show_parameterizable_action (snd key))
+              e)
+      keyed_responses;
+
+    synthesized_rules
+
+  (* TODO: We may not even need this if we can handle the API call directly in
+     the frontend *)
+  let synthesize (module Api : Api) (abs : abstraction_multi) :
+      (key, synthesized_function) Hashtbl.t Lwt.t =
+    let process_prompt (key, prompt) =
+      let* result = Api.call_gemini_api prompt in
+      match result with
+      | Error e ->
+          Printf.eprintf "API Error for key %s: %s\n"
+            (show_parameterizable_action (snd key))
+            e;
+          Lwt.return None
+      | Ok response_str -> Lwt.return (Some (key, response_str))
+    in
+    let* keyed_responses =
+      abs |> extract_prompts |> Lwt_list.filter_map_p process_prompt
+    in
+    let synthesized_rules = synthesize_from_response keyed_responses in
+    Lwt.return synthesized_rules
+end
 
 type state = var [@@deriving show, eq]
 
@@ -439,8 +754,7 @@ type synthesized_rule = {
 }
 [@@deriving show, eq]
 
-let rec value_to_expr (v : value) : expr =
-  match v with
+let rec value_to_expr : value -> expr = function
   | Tree _ -> failwith "Tree cannot be converted to expr directly"
   | Const c -> Const c
   | Record r ->
@@ -449,346 +763,232 @@ let rec value_to_expr (v : value) : expr =
   | Null -> failwith "Null cannot be converted to expr"
   | HandlerHole l -> HandlerHole l
 
-let translate_synthesized_rule (var_id : var)
-    (p_action : parameterizable_action) (fname : string) (args : value list) :
-    synthesized_rule =
+let translate_synthesized_rule (var : var) (p_action : parameterizable_action)
+    (fname : string) (args : value list) : synthesized_rule =
   let label, action_type =
     match p_action with P_Click l -> (l, Click) | P_Input l -> (l, Input)
   in
   let args_expr = List.map value_to_expr args in
-  let args = [ Access var_id ] @ args_expr in
-  let func_expr = Fun { func = fname; args } in
-  { state = var_id; label; action_type; func = func_expr }
+  let args = [ Access var ] @ args_expr in
+  let func = Fun { func = fname; args } in
+  { state = var; label; action_type; func }
 
 let translate_synthesized_rules
-    (synthesized_rules :
-      (var * parameterizable_action, synthesized_function) Hashtbl.t) :
+    (synthesized_rules : (key, synthesized_function) Hashtbl.t) :
     synthesized_rule list =
   Hashtbl.fold
-    (fun (var_id, p_action) (fname, args) acc ->
-      let rule = translate_synthesized_rule var_id p_action fname args in
-      rule :: acc)
+    (fun (var, p_action) (fname, args) acc ->
+      translate_synthesized_rule var p_action fname args :: acc)
     synthesized_rules []
 
-(* JavaScript로 변환 *)
-
-let func_to_js (fname : string) (expr_l : string list) : string =
-  match fname with
-  | "map" -> (
-      match expr_l with
-      | [ l_expr; f_expr ] -> Printf.sprintf "(%s).map(%s)" l_expr f_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "Map: Expected 2 arguments (list_expr, function_expr)"))
-  | "concat_list" -> (
-      match expr_l with
-      | [ l1_expr; l2_expr ] -> Printf.sprintf "[...%s, ...%s]" l1_expr l2_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "ConcatList: Expected 2 arguments (list1_expr, list2_expr)"))
-  | "length" -> (
-      match expr_l with
-      | [ l_expr ] -> Printf.sprintf "(%s).length" l_expr
-      | _ ->
-          raise (ParameterLengthError "Length: Expected 1 argument (list_expr)")
-      )
-  | "filter" -> (
-      match expr_l with
-      | [ l_expr; f_expr ] -> Printf.sprintf "(%s).filter(%s)" l_expr f_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "Filter: Expected 2 arguments (list_expr, function_expr)"))
-  | "find" -> (
-      match expr_l with
-      | [ l_expr; f_expr ] -> Printf.sprintf "(%s).find(%s)" l_expr f_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "Find: Expected 2 arguments (list_expr, function_expr)"))
-  | "push" -> (
-      match expr_l with
-      | [ l_expr; item_expr ] -> Printf.sprintf "[%s, ...%s]" item_expr l_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "Push: Expected 2 arguments (list_expr, item_expr)"))
-  | "pop" -> (
-      match expr_l with
-      | [ l_expr ] -> Printf.sprintf "(%s).slice(1)" l_expr
-      | _ -> raise (ParameterLengthError "Pop: Expected 1 argument (list_expr)")
-      )
-  | "plus" -> (
-      match expr_l with
-      | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s + %s)" v1_expr v2_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "Plus: Expected 2 arguments (val1_expr, val2_expr)"))
-  | "minus" -> (
-      match expr_l with
-      | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s - %s)" v1_expr v2_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "Minus: Expected 2 arguments (val1_expr, val2_expr)"))
-  | "times" -> (
-      match expr_l with
-      | [ v1_expr; v2_expr ] -> Printf.sprintf "(%s * %s)" v1_expr v2_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "Times: Expected 2 arguments (val1_expr, val2_expr)"))
-  | "divide" -> (
-      match expr_l with
-      | [ v1_expr; v2_expr ] -> Printf.sprintf "((%s / %s) | 0)" v1_expr v2_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "Divide: Expected 2 arguments (val1_expr, val2_expr)"))
-  | "change_string_to" -> (
-      match expr_l with
-      | [ _target_type_expr; new_s_expr ] -> new_s_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "ChangeStringTo: Expected 2 arguments (target_type_expr, \
-                new_string_expr)"))
-  | "set_to_const_string" -> (
-      match expr_l with
-      | [ _v_old_expr; new_s_const_expr ] -> new_s_const_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "SetToConstString: Expected 2 arguments (old_val_expr, \
-                new_string_const_expr)"))
-  | "change_string" -> (
-      match expr_l with
-      | [ _v1_expr; s_expr ] -> s_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "ChangeString: Expected 2 arguments (val1_expr, new_string_expr)")
-      )
-  | "concat_str" -> (
-      match expr_l with
-      | [ s1_expr; s2_expr ] -> Printf.sprintf "(%s + %s)" s1_expr s2_expr
-      | _ ->
-          raise
-            (ParameterLengthError
-               "ConcatStr: Expected 2 arguments (string1_expr, string2_expr)"))
-  | _ -> failwith ("Unknown function for JS translation: " ^ fname)
-
-let test () =
-  let counter_abstraction =
-    {
-      sketch = expr_of_tree (Const (Int 0));
-      init = [ (Var 1, Const (Int 0)) ];
-      timelines =
-        [
-          [
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 1)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 1)) ] );
-          ];
-        ];
-    }
-  in
-  Printf.printf "Synthesizing for Counter Example:\n";
-  let rules = synthesize counter_abstraction in
-  Hashtbl.iter
-    (fun (var_id, p_action) (fname, args) ->
-      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
-        (show_var var_id)
-        (show_parameterizable_action p_action)
-        fname
-        (String.concat ", " (List.map show_value args)))
-    rules;
-  Printf.printf "\n";
-  let counter_abstraction2 =
-    {
-      sketch = expr_of_tree (Const (Int 0));
-      init = [ (Var 1, Const (Int 4)) ];
-      timelines =
-        [
-          [
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 5)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 6)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 7)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 6)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 5)) ] );
-          ];
-        ];
-    }
-  in
-  Printf.printf "Synthesizing for Counter Example 2:\n";
-  let rules = synthesize counter_abstraction2 in
-  Hashtbl.iter
-    (fun (var_id, p_action) (fname, args) ->
-      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
-        (show_var var_id)
-        (show_parameterizable_action p_action)
-        fname
-        (String.concat ", " (List.map show_value args)))
-    rules;
-  Printf.printf "\n";
-
-  let counter_abstraction3 =
-    {
-      sketch = expr_of_tree (Const (Int 0));
-      init = [ (Var 1, Const (Int 4)) ];
-      timelines =
-        [
-          [
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 8)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 16)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 32)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 16)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 8)) ] );
-          ];
-        ];
-    }
-  in
-  Printf.printf "Synthesizing for Counter Example 3:\n";
-  let rules = synthesize counter_abstraction3 in
-  Hashtbl.iter
-    (fun (var_id, p_action) (fname, args) ->
-      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
-        (show_var var_id)
-        (show_parameterizable_action p_action)
-        fname
-        (String.concat ", " (List.map show_value args)))
-    rules;
-  Printf.printf "\n";
-
-  let counter_abstraction_timeline =
-    {
-      sketch = expr_of_tree (Const (Int 0));
-      init = [ (Var 1, Const (Int 4)) ];
-      timelines =
-        [
-          [
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 8)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 16)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 32)) ] );
-          ];
-          [
-            ( { label = Label 2; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 2)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
-              [ (Var 1, Const (Int 1)) ] );
-          ];
-        ];
-    }
-  in
-  Printf.printf "Synthesizing for Counter Example with timelines:\n";
-  let rules = synthesize counter_abstraction_timeline in
-  Hashtbl.iter
-    (fun (var_id, p_action) (fname, args) ->
-      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
-        (show_var var_id)
-        (show_parameterizable_action p_action)
-        fname
-        (String.concat ", " (List.map show_value args)))
-    rules;
-  Printf.printf "\n";
-
-  let string_input_abstraction =
-    {
-      sketch = expr_of_tree (Const (String "initial"));
-      init = [ (Var 10, Const (String "initial")) ];
-      timelines =
-        [
-          [
-            ( { label = Label 5; action_type = Input; arg = Some "world" },
-              [ (Var 10, Const (String "world")) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 10, Const (String "hello")) ] );
-            ( { label = Label 5; action_type = Input; arg = Some "changed" },
-              [ (Var 10, Const (String "changed")) ] );
-          ];
-        ];
-    }
-  in
-  Printf.printf "Synthesizing for String Input Example:\n";
-  let rules_str = synthesize string_input_abstraction in
-  Hashtbl.iter
-    (fun (var_id, p_action) (fname, args) ->
-      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
-        (show_var var_id)
-        (show_parameterizable_action p_action)
-        fname
-        (String.concat ", " (List.map show_value args)))
-    rules_str;
-  Printf.printf "\n";
-
-  let string_concat_abstraction =
-    {
-      sketch = expr_of_tree (Const (String "initial"));
-      init = [ (Var 10, Const (String "initial")) ];
-      timelines =
-        [
-          [
-            ( { label = Label 5; action_type = Input; arg = Some "world" },
-              [ (Var 10, Const (String "initial world")) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
-              [ (Var 10, Const (String "hello")) ] );
-            ( { label = Label 5; action_type = Input; arg = Some "changed" },
-              [ (Var 10, Const (String "hello changed")) ] );
-          ];
-        ];
-    }
-  in
-  Printf.printf "Synthesizing for String concat Input Example:\n";
-  let rules_str = synthesize string_concat_abstraction in
-  Hashtbl.iter
-    (fun (var_id, p_action) (fname, args) ->
-      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
-        (show_var var_id)
-        (show_parameterizable_action p_action)
-        fname
-        (String.concat ", " (List.map show_value args)))
-    rules_str;
-  Printf.printf "\n";
-
-  let list_push_pop_abstraction =
-    {
-      sketch = expr_of_tree (Const (Int 0));
-      init = [ (Var 20, List []) ];
-      timelines =
-        [
-          [
-            ( { label = Label 100; action_type = Click; arg = None },
-              [ (Var 20, List []) ] );
-            ( { label = Label 50; action_type = Click; arg = None },
-              [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
-          ];
-        ];
-    }
-  in
-  Printf.printf "Synthesizing for List Push/Pop Example:\n";
-  let rules_list = synthesize list_push_pop_abstraction in
-  Hashtbl.iter
-    (fun (var_id, p_action) (fname, args) ->
-      Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n"
-        (show_var var_id)
-        (show_parameterizable_action p_action)
-        fname
-        (String.concat ", " (List.map show_value args)))
-    rules_list
+(* let test () = *)
+(*   let counter_abstraction = *)
+(*     { *)
+(*       sketch = expr_of_tree (Const (Int 0)); *)
+(*       init = [ (Var 1, Const (Int 0)) ]; *)
+(*       timelines = *)
+(*         [ *)
+(*           [ *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 1)) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 1)) ] ); *)
+(*           ]; *)
+(*         ]; *)
+(*     } *)
+(*   in *)
+(*   Printf.printf "Synthesizing for Counter Example:\n"; *)
+(*   let rules = synthesize counter_abstraction in *)
+(*   Hashtbl.iter *)
+(*     (fun (var_id, p_action) (fname, args) -> *)
+(*       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n" *)
+(*         (show_var var_id) *)
+(*         (show_parameterizable_action p_action) *)
+(*         fname *)
+(*         (String.concat ", " (List.map show_value args))) *)
+(*     rules; *)
+(*   Printf.printf "\n"; *)
+(*   let counter_abstraction2 = *)
+(*     { *)
+(*       sketch = expr_of_tree (Const (Int 0)); *)
+(*       init = [ (Var 1, Const (Int 4)) ]; *)
+(*       timelines = *)
+(*         [ *)
+(*           [ *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 5)) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 6)) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 7)) ] ); *)
+(*             ( { label = Label 2; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 6)) ] ); *)
+(*             ( { label = Label 2; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 5)) ] ); *)
+(*           ]; *)
+(*         ]; *)
+(*     } *)
+(*   in *)
+(*   Printf.printf "Synthesizing for Counter Example 2:\n"; *)
+(*   let rules = synthesize counter_abstraction2 in *)
+(*   Hashtbl.iter *)
+(*     (fun (var_id, p_action) (fname, args) -> *)
+(*       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n" *)
+(*         (show_var var_id) *)
+(*         (show_parameterizable_action p_action) *)
+(*         fname *)
+(*         (String.concat ", " (List.map show_value args))) *)
+(*     rules; *)
+(*   Printf.printf "\n"; *)
+(**)
+(*   let counter_abstraction3 = *)
+(*     { *)
+(*       sketch = expr_of_tree (Const (Int 0)); *)
+(*       init = [ (Var 1, Const (Int 4)) ]; *)
+(*       timelines = *)
+(*         [ *)
+(*           [ *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 8)) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 16)) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 32)) ] ); *)
+(*             ( { label = Label 2; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 16)) ] ); *)
+(*             ( { label = Label 2; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 8)) ] ); *)
+(*           ]; *)
+(*         ]; *)
+(*     } *)
+(*   in *)
+(*   Printf.printf "Synthesizing for Counter Example 3:\n"; *)
+(*   let rules = synthesize counter_abstraction3 in *)
+(*   Hashtbl.iter *)
+(*     (fun (var_id, p_action) (fname, args) -> *)
+(*       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n" *)
+(*         (show_var var_id) *)
+(*         (show_parameterizable_action p_action) *)
+(*         fname *)
+(*         (String.concat ", " (List.map show_value args))) *)
+(*     rules; *)
+(*   Printf.printf "\n"; *)
+(**)
+(*   let counter_abstraction_timeline = *)
+(*     { *)
+(*       sketch = expr_of_tree (Const (Int 0)); *)
+(*       init = [ (Var 1, Const (Int 4)) ]; *)
+(*       timelines = *)
+(*         [ *)
+(*           [ *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 8)) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 16)) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 32)) ] ); *)
+(*           ]; *)
+(*           [ *)
+(*             ( { label = Label 2; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 2)) ] ); *)
+(*             ( { label = Label 2; action_type = Click; arg = None }, *)
+(*               [ (Var 1, Const (Int 1)) ] ); *)
+(*           ]; *)
+(*         ]; *)
+(*     } *)
+(*   in *)
+(*   Printf.printf "Synthesizing for Counter Example with timelines:\n"; *)
+(*   let rules = synthesize counter_abstraction_timeline in *)
+(*   Hashtbl.iter *)
+(*     (fun (var_id, p_action) (fname, args) -> *)
+(*       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n" *)
+(*         (show_var var_id) *)
+(*         (show_parameterizable_action p_action) *)
+(*         fname *)
+(*         (String.concat ", " (List.map show_value args))) *)
+(*     rules; *)
+(*   Printf.printf "\n"; *)
+(**)
+(*   let string_input_abstraction = *)
+(*     { *)
+(*       sketch = expr_of_tree (Const (String "initial")); *)
+(*       init = [ (Var 10, Const (String "initial")) ]; *)
+(*       timelines = *)
+(*         [ *)
+(*           [ *)
+(*             ( { label = Label 5; action_type = Input; arg = Some "world" }, *)
+(*               [ (Var 10, Const (String "world")) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 10, Const (String "hello")) ] ); *)
+(*             ( { label = Label 5; action_type = Input; arg = Some "changed" }, *)
+(*               [ (Var 10, Const (String "changed")) ] ); *)
+(*           ]; *)
+(*         ]; *)
+(*     } *)
+(*   in *)
+(*   Printf.printf "Synthesizing for String Input Example:\n"; *)
+(*   let rules_str = synthesize string_input_abstraction in *)
+(*   Hashtbl.iter *)
+(*     (fun (var_id, p_action) (fname, args) -> *)
+(*       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n" *)
+(*         (show_var var_id) *)
+(*         (show_parameterizable_action p_action) *)
+(*         fname *)
+(*         (String.concat ", " (List.map show_value args))) *)
+(*     rules_str; *)
+(*   Printf.printf "\n"; *)
+(**)
+(*   let string_concat_abstraction = *)
+(*     { *)
+(*       sketch = expr_of_tree (Const (String "initial")); *)
+(*       init = [ (Var 10, Const (String "initial")) ]; *)
+(*       timelines = *)
+(*         [ *)
+(*           [ *)
+(*             ( { label = Label 5; action_type = Input; arg = Some "world" }, *)
+(*               [ (Var 10, Const (String "initial world")) ] ); *)
+(*             ( { label = Label 1; action_type = Click; arg = None }, *)
+(*               [ (Var 10, Const (String "hello")) ] ); *)
+(*             ( { label = Label 5; action_type = Input; arg = Some "changed" }, *)
+(*               [ (Var 10, Const (String "hello changed")) ] ); *)
+(*           ]; *)
+(*         ]; *)
+(*     } *)
+(*   in *)
+(*   Printf.printf "Synthesizing for String concat Input Example:\n"; *)
+(*   let rules_str = synthesize string_concat_abstraction in *)
+(*   Hashtbl.iter *)
+(*     (fun (var_id, p_action) (fname, args) -> *)
+(*       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n" *)
+(*         (show_var var_id) *)
+(*         (show_parameterizable_action p_action) *)
+(*         fname *)
+(*         (String.concat ", " (List.map show_value args))) *)
+(*     rules_str; *)
+(*   Printf.printf "\n"; *)
+(**)
+(*   let list_push_pop_abstraction = *)
+(*     { *)
+(*       sketch = expr_of_tree (Const (Int 0)); *)
+(*       init = [ (Var 20, List []) ]; *)
+(*       timelines = *)
+(*         [ *)
+(*           [ *)
+(*             ( { label = Label 100; action_type = Click; arg = None }, *)
+(*               [ (Var 20, List []) ] ); *)
+(*             ( { label = Label 50; action_type = Click; arg = None }, *)
+(*               [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] ); *)
+(*           ]; *)
+(*         ]; *)
+(*     } *)
+(*   in *)
+(*   Printf.printf "Synthesizing for List Push/Pop Example:\n"; *)
+(*   let rules_list = synthesize list_push_pop_abstraction in *)
+(*   Hashtbl.iter *)
+(*     (fun (var_id, p_action) (fname, args) -> *)
+(*       Printf.printf "Var %s, Action %s: Func: %s, Args: [%s]\n" *)
+(*         (show_var var_id) *)
+(*         (show_parameterizable_action p_action) *)
+(*         fname *)
+(*         (String.concat ", " (List.map show_value args))) *)
+(*     rules_list *)

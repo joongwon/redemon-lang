@@ -1,0 +1,5 @@
+(library
+ (name redemon_with_llm_js)
+ (libraries redemon_lang js_of_ocaml js_of_ocaml-lwt promise_jsoo_lwt)
+ (preprocess
+  (pps js_of_ocaml-ppx ppx_yojson_conv ppx_deriving.show ppx_deriving.eq)))

@@ -17,6 +17,7 @@
   dune
   base
   logs
+  tls-lwt
   cohttp-lwt-unix
   js_of_ocaml
   js_of_ocaml-ppx

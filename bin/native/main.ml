@@ -288,6 +288,9 @@ let synthesis_test () =
   Lwt.return_unit
 
 let () =
+  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_level (Some Logs.Debug);
+
   Lwt_main.run (synthesis_test ());
   let abs = Abstract.abstract_demo_multi counter_demo in
   let result =

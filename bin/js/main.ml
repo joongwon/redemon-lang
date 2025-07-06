@@ -1,7 +1,6 @@
 open! Base
 open Redemon_lang.Tree
 open Redemon_lang
-open Lwt.Infix
 
 let position (lexbuf : Lexing.lexbuf) : string =
   let open Lexing in

@@ -20,7 +20,7 @@ let counter_demo =
                 ( "className",
                   AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
                 );
-                ("onClick", AttrFunc (Label 1));
+                ("onClick", AttrFunc (label 1));
               ]
               [ tree_const (String "Increment") ];
           ];
@@ -28,7 +28,7 @@ let counter_demo =
         [
           [
             {
-              action = { label = Label 1; action_type = Click; arg = None };
+              action = { label = label 1; action_type = Click; arg = None };
               edits =
                 [
                   ([ Index 0; Index 0 ], ConstReplace (Int 1));
@@ -36,7 +36,7 @@ let counter_demo =
                 ];
             };
             {
-              action = { label = Label 1; action_type = Click; arg = None };
+              action = { label = label 1; action_type = Click; arg = None };
               edits =
                 [
                   ([ Index 0; Index 0 ], ConstReplace (Int 2));
@@ -63,17 +63,17 @@ let synthesis_test () =
       timelines =
         [
           [
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 1)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 2)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 3)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 2)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 1)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 0)) ] );
           ];
         ];
@@ -108,15 +108,15 @@ let synthesis_test () =
       timelines =
         [
           [
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 5)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 6)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 7)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 6)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 5)) ] );
           ];
         ];
@@ -141,15 +141,15 @@ let synthesis_test () =
       timelines =
         [
           [
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 8)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 16)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 32)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 16)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 8)) ] );
           ];
         ];
@@ -174,17 +174,17 @@ let synthesis_test () =
       timelines =
         [
           [
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 8)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 16)) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 1, Const (Int 32)) ] );
           ];
           [
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 2)) ] );
-            ( { label = Label 2; action_type = Click; arg = None },
+            ( { label = label 2; action_type = Click; arg = None },
               [ (Var 1, Const (Int 1)) ] );
           ];
         ];
@@ -209,11 +209,11 @@ let synthesis_test () =
       timelines =
         [
           [
-            ( { label = Label 5; action_type = Input; arg = Some "world" },
+            ( { label = label 5; action_type = Input; arg = Some "world" },
               [ (Var 10, Const (String "world")) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 10, Const (String "hello")) ] );
-            ( { label = Label 5; action_type = Input; arg = Some "changed" },
+            ( { label = label 5; action_type = Input; arg = Some "changed" },
               [ (Var 10, Const (String "changed")) ] );
           ];
         ];
@@ -238,11 +238,11 @@ let synthesis_test () =
       timelines =
         [
           [
-            ( { label = Label 5; action_type = Input; arg = Some "world" },
+            ( { label = label 5; action_type = Input; arg = Some "world" },
               [ (Var 10, Const (String "initial world")) ] );
-            ( { label = Label 1; action_type = Click; arg = None },
+            ( { label = label 1; action_type = Click; arg = None },
               [ (Var 10, Const (String "hello")) ] );
-            ( { label = Label 5; action_type = Input; arg = Some "changed" },
+            ( { label = label 5; action_type = Input; arg = Some "changed" },
               [ (Var 10, Const (String "hello changed")) ] );
           ];
         ];
@@ -267,9 +267,9 @@ let synthesis_test () =
       timelines =
         [
           [
-            ( { label = Label 100; action_type = Click; arg = None },
+            ( { label = label 100; action_type = Click; arg = None },
               [ (Var 20, List []) ] );
-            ( { label = Label 50; action_type = Click; arg = None },
+            ( { label = label 50; action_type = Click; arg = None },
               [ (Var 20, List [ Record [ (Var 1, Const (Int 1)) ] ]) ] );
           ];
         ];

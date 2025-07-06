@@ -1,7 +1,9 @@
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives
 
 type const = String of string | Int of int [@@deriving eq, show, yojson]
-type label = Label of int [@@unboxed] [@@deriving eq, show, yojson]
+type label = Label of (int * int option) [@@unboxed] [@@deriving eq, show, yojson]
+
+let label ?key n = Label (n, key)
 
 type attr_value = AttrConst of const | AttrFunc of label
 [@@deriving eq, show, yojson]

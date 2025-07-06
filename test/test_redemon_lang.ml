@@ -17,11 +17,11 @@ let demo_testcases =
     ( "increment",
       [
         {
-          action = { label = Label 0; action_type = Click; arg = None };
+          action = { label = label 0; action_type = Click; arg = None };
           edits = [ ([ Index 0; Index 0 ], ConstReplace (String "1")) ];
         };
       ],
-      {|[{"action":{"label":["Label",0],"action_type":["Click"]},"edits":[[[["Index",0],["Index",0]],["ConstReplace",["String","1"]]]]}]|}
+      {|[{"action":{"label":["Label",[0,null]],"action_type":["Click"]},"edits":[[[["Index",0],["Index",0]],["ConstReplace",["String","1"]]]]}]|}
     );
   ]
 
@@ -50,7 +50,7 @@ let parse_tree_testcases =
         [
           ("a", AttrConst (String "b"));
           ("c", AttrConst (Int 1));
-          ("f", AttrFunc (Label 1));
+          ("f", AttrFunc (label 1));
         ]
         [] );
     ( "counter example",
@@ -77,7 +77,7 @@ let parse_tree_testcases =
                 AttrConst
                   (String
                      "border-none bg-stone-500 text-white px-2 py-1 rounded") );
-              ("onClick", AttrFunc (Label 1));
+              ("onClick", AttrFunc (label 1));
             ]
             [ tree_const (String "Increment") ];
         ] );
@@ -90,6 +90,12 @@ let parse_tree_testcases =
     ( "space around test",
       "<hello>  world  </hello>",
       tree_elem "hello" [] [ tree_const (String "world") ] );
+    ( "label with key",
+      "<button onClick={$1$2}>Click me</button>",
+      tree_elem "button"
+        [ ("onClick", AttrFunc (label ~key:2 1)) ]
+        [ tree_const (String "Click me") ]
+    );
   ]
 
 let test_init_abstraction (name, input, expected) =
@@ -112,7 +118,7 @@ let init_abstraction_testcases =
               ( "className",
                 AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
               );
-              ("onClick", AttrFunc (Label 1));
+              ("onClick", AttrFunc (label 1));
             ]
             [ tree_const (String "Increment") ];
         ],
@@ -139,7 +145,7 @@ let init_abstraction_testcases =
                           Const
                             (String "bg-stone-500 text-white px-2 py-1 rounded")
                         );
-                        ("onClick", HandlerHole (Label 1));
+                        ("onClick", HandlerHole (label 1));
                       ];
                     children = List [ Const (String "Increment") ];
                   };
@@ -172,7 +178,7 @@ let counter_demo =
                 ( "className",
                   AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
                 );
-                ("onClick", AttrFunc (Label 1));
+                ("onClick", AttrFunc (label 1));
               ]
               [ tree_const (String "Increment") ];
             tree_elem "button"
@@ -180,7 +186,7 @@ let counter_demo =
                 ( "className",
                   AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
                 );
-                ("onClick", AttrFunc (Label 2));
+                ("onClick", AttrFunc (label 2));
               ]
               [ tree_const (String "Decrement") ];
           ];
@@ -188,15 +194,15 @@ let counter_demo =
         [
           [
             {
-              action = { label = Label 1; action_type = Demo.Click; arg = None };
+              action = { label = label 1; action_type = Demo.Click; arg = None };
               edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 1)) ];
             };
             {
-              action = { label = Label 1; action_type = Demo.Click; arg = None };
+              action = { label = label 1; action_type = Demo.Click; arg = None };
               edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 2)) ];
             };
             {
-              action = { label = Label 2; action_type = Demo.Click; arg = None };
+              action = { label = label 2; action_type = Demo.Click; arg = None };
               edits = [ ([ Index 0; Index 0 ], Demo.ConstReplace (Int 1)) ];
             };
           ];
@@ -239,7 +245,7 @@ let abstract_demo_single_testcases =
                                   (String
                                      "bg-stone-500 text-white px-2 py-1 rounded")
                               );
-                              ("onClick", HandlerHole (Label 1));
+                              ("onClick", HandlerHole (label 1));
                             ];
                           children = List [ Const (String "Increment") ];
                         };
@@ -253,7 +259,7 @@ let abstract_demo_single_testcases =
                                   (String
                                      "bg-stone-500 text-white px-2 py-1 rounded")
                               );
-                              ("onClick", HandlerHole (Label 2));
+                              ("onClick", HandlerHole (label 2));
                             ];
                           children = List [ Const (String "Decrement") ];
                         };
@@ -262,11 +268,11 @@ let abstract_demo_single_testcases =
           init = [ (Var 1, Const (Int 0)) ];
           steps =
             [
-              ( { label = Label 1; action_type = Click; arg = None },
+              ( { label = label 1; action_type = Click; arg = None },
                 [ (Var 1, Const (Int 1)) ] );
-              ( { label = Label 1; action_type = Click; arg = None },
+              ( { label = label 1; action_type = Click; arg = None },
                 [ (Var 1, Const (Int 2)) ] );
-              ( { label = Label 2; action_type = Click; arg = None },
+              ( { label = label 2; action_type = Click; arg = None },
                 [ (Var 1, Const (Int 1)) ] );
             ];
         } );
@@ -277,12 +283,12 @@ let abstract_demo_single_testcases =
             [
               tree_elem "input"
                 [
-                  ("onChange", AttrFunc (Label 1));
+                  ("onChange", AttrFunc (label 1));
                   ("value", AttrConst (String ""));
                 ]
                 [];
               tree_elem "button"
-                [ ("onClick", AttrFunc (Label 2)) ]
+                [ ("onClick", AttrFunc (label 2)) ]
                 [ tree_const (String "Add Task") ];
               tree_elem "ul" [] [];
             ];
@@ -291,7 +297,7 @@ let abstract_demo_single_testcases =
             [
               {
                 action =
-                  { label = Label 1; action_type = Input; arg = Some "Task 1" };
+                  { label = label 1; action_type = Input; arg = Some "Task 1" };
                 edits =
                   [
                     ( [ Index 0 ],
@@ -299,7 +305,7 @@ let abstract_demo_single_testcases =
                   ];
               };
               {
-                action = { label = Label 2; action_type = Click; arg = None };
+                action = { label = label 2; action_type = Click; arg = None };
                 edits =
                   [
                     ( [ Index 2 ],
@@ -313,7 +319,7 @@ let abstract_demo_single_testcases =
               {
                 action =
                   {
-                    label = Label 1;
+                    label = label 1;
                     action_type = Input;
                     arg = Some "New Task";
                   };
@@ -324,7 +330,7 @@ let abstract_demo_single_testcases =
                   ];
               };
               {
-                action = { label = Label 2; action_type = Click; arg = None };
+                action = { label = label 2; action_type = Click; arg = None };
                 edits =
                   [
                     ([ Index 2 ], NodeCopy (Index 0));
@@ -352,14 +358,14 @@ let abstract_demo_single_testcases =
                           attrs =
                             [
                               ("value", Access (Var 1));
-                              ("onChange", HandlerHole (Label 1));
+                              ("onChange", HandlerHole (label 1));
                             ];
                           children = List [];
                         };
                       Elem
                         {
                           name = "button";
-                          attrs = [ ("onClick", HandlerHole (Label 2)) ];
+                          attrs = [ ("onClick", HandlerHole (label 2)) ];
                           children = List [ Const (String "Add Task") ];
                         };
                       Elem
@@ -384,19 +390,19 @@ let abstract_demo_single_testcases =
           init = [ (Var 2, List []); (Var 1, Const (String "")) ];
           steps =
             [
-              ( { label = Label 1; action_type = Input; arg = Some "Task 1" },
+              ( { label = label 1; action_type = Input; arg = Some "Task 1" },
                 [ (Var 2, List []); (Var 1, Const (String "Task 1")) ] );
-              ( { label = Label 2; action_type = Click; arg = None },
+              ( { label = label 2; action_type = Click; arg = None },
                 [
                   (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
                   (Var 1, Const (String ""));
                 ] );
-              ( { label = Label 1; action_type = Input; arg = Some "New Task" },
+              ( { label = label 1; action_type = Input; arg = Some "New Task" },
                 [
                   (Var 2, List [ Record [ (Var 1, Const (String "Task 1")) ] ]);
                   (Var 1, Const (String "New Task"));
                 ] );
-              ( { label = Label 2; action_type = Click; arg = None },
+              ( { label = label 2; action_type = Click; arg = None },
                 [
                   (Var 1, Const (String ""));
                   ( Var 2,
@@ -429,23 +435,23 @@ let abstract_demo_multi_testcases =
                 tree_elem "span" [] [ tree_const (Int 0) ];
                 tree_elem "span" [] [ tree_const (Int 0) ];
                 tree_elem "button"
-                  [ ("onClick", AttrFunc (Label 1)) ]
+                  [ ("onClick", AttrFunc (label 1)) ]
                   [ tree_const (String "Increment 1") ];
                 tree_elem "button"
-                  [ ("onClick", AttrFunc (Label 2)) ]
+                  [ ("onClick", AttrFunc (label 2)) ]
                   [ tree_const (String "Increment 2") ];
               ];
           timelines =
             [
               [
                 {
-                  action = { label = Label 1; action_type = Click; arg = None };
+                  action = { label = label 1; action_type = Click; arg = None };
                   edits = [ ([ Index 0; Index 0 ], ConstReplace (Int 1)) ];
                 };
               ];
               [
                 {
-                  action = { label = Label 2; action_type = Click; arg = None };
+                  action = { label = label 2; action_type = Click; arg = None };
                   edits = [ ([ Index 1; Index 0 ], ConstReplace (Int 2)) ];
                 };
               ];
@@ -476,13 +482,13 @@ let abstract_demo_multi_testcases =
                       Elem
                         {
                           name = "button";
-                          attrs = [ ("onClick", HandlerHole (Label 1)) ];
+                          attrs = [ ("onClick", HandlerHole (label 1)) ];
                           children = List [ Const (String "Increment 1") ];
                         };
                       Elem
                         {
                           name = "button";
-                          attrs = [ ("onClick", HandlerHole (Label 2)) ];
+                          attrs = [ ("onClick", HandlerHole (label 2)) ];
                           children = List [ Const (String "Increment 2") ];
                         };
                     ];
@@ -491,11 +497,11 @@ let abstract_demo_multi_testcases =
           timelines =
             [
               [
-                ( { label = Label 1; action_type = Click; arg = None },
+                ( { label = label 1; action_type = Click; arg = None },
                   [ (Var 2, Const (Int 0)); (Var 1, Const (Int 1)) ] );
               ];
               [
-                ( { label = Label 2; action_type = Click; arg = None },
+                ( { label = label 2; action_type = Click; arg = None },
                   [ (Var 2, Const (Int 2)); (Var 1, Const (Int 0)) ] );
               ];
             ];
@@ -526,14 +532,14 @@ let test_synthesis_1 () =
       handlers =
         [
           {
-            label = Label 2;
+            label = label 2;
             action_type = Click;
             state = Var 1;
             func =
               Fun { func = "divide"; args = [ Access (Var 1); Const (Int 2) ] };
           };
           {
-            label = Label 1;
+            label = label 1;
             action_type = Click;
             state = Var 1;
             func =
@@ -561,7 +567,7 @@ let test_synthesis_2 () =
                     ( "className",
                       AttrConst
                         (String "bg-stone-500 text-white px-2 py-1 rounded") );
-                    ("onClick", AttrFunc (Label 1));
+                    ("onClick", AttrFunc (label 1));
                   ]
                   [ tree_const (String "Increment") ];
                 tree_elem "button"
@@ -569,7 +575,7 @@ let test_synthesis_2 () =
                     ( "className",
                       AttrConst
                         (String "bg-stone-500 text-white px-2 py-1 rounded") );
-                    ("onClick", AttrFunc (Label 2));
+                    ("onClick", AttrFunc (label 2));
                   ]
                   [ tree_const (String "Decrement") ];
               ];

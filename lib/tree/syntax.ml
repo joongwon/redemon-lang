@@ -21,6 +21,10 @@ let tree_const c = Const c
 let tree_elem name attrs children = Elem { name; attrs; children }
 let string_of_const = function String s -> s | Int i -> string_of_int i
 
+let js_of_const = function
+  | String s -> Printf.sprintf "\"%s\"" s
+  | Int i -> string_of_int i
+
 let wrapped_string_of_const = function
   | String s -> Printf.sprintf "\"%s\"" s
   | Int i -> string_of_int i

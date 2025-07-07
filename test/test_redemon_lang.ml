@@ -21,7 +21,7 @@ let demo_testcases =
           edits = [ ([ Index 0; Index 0 ], ConstReplace (String "1")) ];
         };
       ],
-      {|[{"action":{"label":["Label",[0,null]],"action_type":["Click"]},"edits":[[[["Index",0],["Index",0]],["ConstReplace",["String","1"]]]]}]|}
+      {|[{"action":{"label":["Label",0,null],"action_type":["Click"]},"edits":[[[["Index",0],["Index",0]],["ConstReplace",["String","1"]]]]}]|}
     );
   ]
 
@@ -94,8 +94,7 @@ let parse_tree_testcases =
       "<button onClick={$1$2}>Click me</button>",
       tree_elem "button"
         [ ("onClick", AttrFunc (label ~key:2 1)) ]
-        [ tree_const (String "Click me") ]
-    );
+        [ tree_const (String "Click me") ] );
   ]
 
 let test_init_abstraction (name, input, expected) =

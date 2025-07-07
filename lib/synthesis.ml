@@ -192,6 +192,13 @@ module Candidate = struct
               (ParameterLengthError
                  "ChangeStringTo: Expected 2 arguments (target_type_expr, \
                   new_string_expr)"))
+    | "set_to_input_string" -> (
+        match expr_l with
+        | [ var ] -> "input"
+        | _ ->
+            raise
+              (ParameterLengthError
+                 "SetToInputString: Expected no arguments, but got some"))
     | "set_to_const_string" -> (
         match expr_l with
         | [ _v_old_expr; new_s_const_expr ] -> new_s_const_expr

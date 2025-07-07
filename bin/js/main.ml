@@ -34,9 +34,21 @@ let synthesize (tree_src : string) (timelines : Demo.demo_timeline list) :
   let* tree = parse_program_str tree_src in
   let demo = Demo.{ init = tree; timelines } in
   let abs = Abstract.abstract_demo_multi demo in
+  Logs.info (fun m ->
+      m "Synthesizing for this demo::: %s\n"
+        (Abstract.show_abstraction_multi abs));
   let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
   in
+  Logs.info (fun m ->
+      m "Synthesized rules: %s\n"
+        (result
+        |> List.map ~f:Synthesis.show_synthesized_rule
+        |> String.concat ~sep:",\n"));
+
+  (* Check if the result is empty *)
+
+  (* Generate the program *)
   let prog =
     Codegen.
       {

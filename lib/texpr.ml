@@ -18,7 +18,7 @@ type expr =
       lst : var; (* lst : list of record *)
       body : expr; (* body : const | elem *)
     }
-(* root.x.map(λroot. body) *)
+  (* root.x.map(λroot. body) *)
   | Fun of {
       func : string; (* e.g. "add", "mul" *)
       args : expr list; (* e.g. [root.x, root.y] *)

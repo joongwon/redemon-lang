@@ -39,10 +39,8 @@ let rec js_of_expr (e : expr) : string =
           (List.map
              (fun (k, v) ->
                match (v : expr) with
-               | Const (String s) ->
-                   Printf.sprintf "%s=\"%s\"" k s
-               | _ ->
-               Printf.sprintf "%s={%s}" k (js_of_expr v))
+               | Const (String s) -> Printf.sprintf "%s=\"%s\"" k s
+               | _ -> Printf.sprintf "%s={%s}" k (js_of_expr v))
              attrs)
       in
       Printf.sprintf "<%s %s>%s</%s>" name attrs_str (jsx_of_expr children) name
@@ -145,9 +143,7 @@ let with_rules_todo (f : 'a -> 'b) (x : 'a) : 'b =
   match f x with
   | r -> r
   | effect Get_handler (Label (l, _)), k ->
-      Printf.sprintf "e => { /* TODO: implement handler %d */ }"
-        l
-  |> continue k
+      Printf.sprintf "e => { /* TODO: implement handler %d */ }" l |> continue k
 
 let js_of_prog (p : prog) : string =
   "function App() {\n"
@@ -174,49 +170,46 @@ let js_of_abs (abs : Abstract.abstraction_multi) : string =
              (js_of_value value))
          abs.init)
   ^ Printf.sprintf "  return %s;\n"
-      (((fun () -> js_of_expr abs.sketch)
-       |> with_prefix ("s")
-       |> with_rules_todo)
+      (((fun () -> js_of_expr abs.sketch) |> with_prefix "s" |> with_rules_todo)
          ())
-  ^ "}\n\n" ^ "render(<App />);\n"
-  ^ "/* Demo timelines:\n"
-  ^ "  Init:\n"
+  ^ "}\n\n" ^ "render(<App />);\n" ^ "/* Demo timelines:\n" ^ "  Init:\n"
   ^ String.concat "\n"
-                     (List.map
-                        (fun (Var v, e) ->
-                          Printf.sprintf "      s%d: %s" v (js_of_value e))
-                        abs.init)
+      (List.map
+         (fun (Var v, e) -> Printf.sprintf "      s%d: %s" v (js_of_value e))
+         abs.init)
   ^ "\n\n"
   ^ String.concat "\n\n"
-      (List.mapi (fun i timeline ->
-        Printf.sprintf "  Timeline %d:\n" i 
-        ^ (
-          String.concat "\n"
-            (List.map
-               (fun ({label = Label (l, k);action_type;arg}, record) ->
-                let label_str = match k with
-                  | None -> Printf.sprintf "Handler %d" l
-                  | Some s -> Printf.sprintf "Handler %d (key=%d)" l s
-                in
-                let action_type_str =
-                  match action_type with
-                  | Demo.Click -> "Click"
-                  | Demo.Input -> "Input"
-                in
-                let arg_str = match arg with
-                  | None -> ""
-                  | Some a -> Printf.sprintf " with arg '%s'" a
-                in
-                let action_str = Printf.sprintf "    %s %s%s" label_str action_type_str arg_str
-                in
-                Printf.sprintf "%s\n%s" action_str
-                  (String.concat "\n"
-                     (List.map
-                        (fun (Var v, e) ->
-                          Printf.sprintf "      s%d: %s" v (js_of_value e))
-                        record)))
-               timeline
-        )
-          ))
+      (List.mapi
+         (fun i timeline ->
+           Printf.sprintf "  Timeline %d:\n" i
+           ^ String.concat "\n"
+               (List.map
+                  (fun ({ label = Label (l, k); action_type; arg }, record) ->
+                    let label_str =
+                      match k with
+                      | None -> Printf.sprintf "Handler %d" l
+                      | Some s -> Printf.sprintf "Handler %d (key=%d)" l s
+                    in
+                    let action_type_str =
+                      match action_type with
+                      | Demo.Click -> "Click"
+                      | Demo.Input -> "Input"
+                    in
+                    let arg_str =
+                      match arg with
+                      | None -> ""
+                      | Some a -> Printf.sprintf " with arg '%s'" a
+                    in
+                    let action_str =
+                      Printf.sprintf "    %s %s%s" label_str action_type_str
+                        arg_str
+                    in
+                    Printf.sprintf "%s\n%s" action_str
+                      (String.concat "\n"
+                         (List.map
+                            (fun (Var v, e) ->
+                              Printf.sprintf "      s%d: %s" v (js_of_value e))
+                            record)))
+                  timeline))
          abs.timelines)
   ^ "\n*/\n"

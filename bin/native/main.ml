@@ -291,20 +291,11 @@ let () =
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Debug);
 
-  (* Lwt_main.run (synthesis_test ()); *)
+  Lwt_main.run (synthesis_test ());
   let abs = Abstract.abstract_demo_multi counter_demo in
-  (* let result =
-    Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
-  in
-  let prog =
-    Codegen.
-      {
-        view = abs.sketch;
-        data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
-        handlers = result;
-        states = abs.init;
-      }
-  in
-  Codegen.show_prog prog |> print_endline;
-  Codegen.js_of_prog prog |> print_endline *)
-  Codegen.js_of_abs abs |> print_endline;
+  (* let result = Synthesis.synthesize abs |>
+     Synthesis.translate_synthesized_rules in let prog = Codegen. { view =
+     abs.sketch; data = Record (List.map (fun (v, _) -> (v, Texpr.Access v))
+     abs.init); handlers = result; states = abs.init; } in Codegen.show_prog
+     prog |> print_endline; Codegen.js_of_prog prog |> print_endline *)
+  Codegen.js_of_abs abs |> print_endline

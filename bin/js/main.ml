@@ -130,4 +130,26 @@ let () =
                [| ("code", js_code |> Js.string |> Js.Unsafe.inject) |]
          | Error err ->
              Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
+
+       method js_sketch tree_src steps =
+         (* Use JSON-encoded string of demo_step list *)
+         Logs.debug (fun m -> m "Steps: %s" steps);
+
+         let steps =
+           steps |> Yojson.Safe.from_string
+           |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                [%of_yojson: Demo.demo_step list list])
+         in
+
+         (let ( let* ) x f = Result.bind x ~f in
+          let* tree = parse_program_str tree_src in
+          let demo = Demo.{ init = tree; timelines = steps } in
+          let abs = Abstract.abstract_demo_multi demo in
+          Ok (Codegen.js_of_abs abs))
+         |> function
+         | Ok js_code ->
+             Js.Unsafe.obj
+               [| ("code", js_code |> Js.string |> Js.Unsafe.inject) |]
+         | Error err ->
+             Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
     end)

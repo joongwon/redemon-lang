@@ -131,7 +131,7 @@ let () =
          | Error err ->
              Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
 
-       method js_sketch tree_src steps =
+       method extractParams tree_src steps =
          (* Use JSON-encoded string of demo_step list *)
          Logs.debug (fun m -> m "Steps: %s" steps);
 

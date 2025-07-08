@@ -291,9 +291,9 @@ let () =
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Debug);
 
-  Lwt_main.run (synthesis_test ());
+  (* Lwt_main.run (synthesis_test ()); *)
   let abs = Abstract.abstract_demo_multi counter_demo in
-  let result =
+  (* let result =
     Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
   in
   let prog =
@@ -306,4 +306,5 @@ let () =
       }
   in
   Codegen.show_prog prog |> print_endline;
-  Codegen.js_of_prog prog |> print_endline
+  Codegen.js_of_prog prog |> print_endline *)
+  Codegen.js_of_abs abs |> print_endline;

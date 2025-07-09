@@ -47,6 +47,63 @@ let counter_demo =
         ];
     }
 
+let input_demo =
+  Demo.
+    {
+      init =
+        tree_elem "div"
+          [
+            ("className", AttrConst (String "flex flex-col items-center gap-2"));
+          ]
+          [
+            tree_elem "div"
+              [ ("className", AttrConst (String "text-lg font-semibold")) ]
+              [];
+            tree_elem "input"
+              [
+                ("type", AttrConst (String "text"));
+                ("value", AttrConst (String ""));
+                ("onChange", AttrFunc (label 1));
+                ( "className",
+                  AttrConst
+                    (String
+                       "w-16 rounded border border-stone-300 px-2 py-1 \
+                        text-center focus:border-transparent focus:ring-2 \
+                        focus:ring-orange-300 focus:outline-none") );
+              ]
+              [];
+          ];
+      timelines =
+        [
+          [
+            {
+              action =
+                { label = label 1; action_type = Input; arg = Some "Task 1" };
+              edits =
+                [
+                  ( [ Index 1 ],
+                    AttributeReplace ("value", Some (String "Task 1")) );
+                  ( [ Index 0 ],
+                    NodeInsert (Index 0, tree_const (String "Task 1")) );
+                ];
+            };
+          ];
+          [
+            {
+              action =
+                { label = label 1; action_type = Input; arg = Some "Task 2" };
+              edits =
+                [
+                  ( [ Index 1 ],
+                    AttributeReplace ("value", Some (String "Task 2")) );
+                  ( [ Index 0 ],
+                    NodeInsert (Index 0, tree_const (String "Task 2")) );
+                ];
+            };
+          ];
+        ];
+    }
+
 let synthesis_test () =
   let open Synthesis in
   let open Tree.Syntax in
@@ -298,4 +355,6 @@ let () =
      abs.sketch; data = Record (List.map (fun (v, _) -> (v, Texpr.Access v))
      abs.init); handlers = result; states = abs.init; } in Codegen.show_prog
      prog |> print_endline; Codegen.js_of_prog prog |> print_endline *)
+  Codegen.js_of_abs abs |> print_endline;
+  let abs = Abstract.abstract_demo_multi input_demo in
   Codegen.js_of_abs abs |> print_endline

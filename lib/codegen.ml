@@ -57,12 +57,13 @@ let rec js_of_expr (e : expr) : string =
   | OptionMap { opt = Var opt; body } ->
       let prefix = perform Get_prefix in
       let opt = Printf.sprintf "%s%d" prefix opt in
-      Printf.sprintf "(%s ? %s : null)" opt (with_prefix opt js_of_expr body)
+      let inner_prefix = Printf.sprintf "%s.%s" opt prop_prefix in
+      Printf.sprintf "(%s ? %s : null)" opt
+        (with_prefix inner_prefix js_of_expr body)
   | ListMap { lst = Var lst; body } ->
       let prefix = perform Get_prefix in
       let lst = Printf.sprintf "%s%d" prefix lst in
       let arg = "item" in
-      (* could be any name *)
       let inner_prefix = Printf.sprintf "%s.%s" arg prop_prefix in
       Printf.sprintf "%s.map(%s => %s)" lst arg
         (with_prefix inner_prefix js_of_expr body)

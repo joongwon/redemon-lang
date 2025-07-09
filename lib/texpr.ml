@@ -68,11 +68,12 @@ let rec eval (e : expr) (root : record) : value =
       let children =
         match eval children root with
         | List es ->
-            List.map
+            List.filter_map
               (fun e' ->
                 match e' with
-                | Const c -> tree_const c
-                | Tree e'' -> e''
+                | Const c -> Some (tree_const c)
+                | Tree e'' -> Some e''
+                | Null -> None
                 | _ -> failwith "Expected a constant or tree element")
               es
         | _ -> failwith "Expected a list"

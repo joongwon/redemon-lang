@@ -505,6 +505,139 @@ let abstract_demo_multi_testcases =
               ];
             ];
         } );
+    ( "todo list demo",
+      Demo.
+        {
+          init =
+            tree_elem "div"
+              [
+                ( "className",
+                  AttrConst (String "flex flex-col items-center gap-2") );
+              ]
+              [
+                tree_elem "div"
+                  [ ("className", AttrConst (String "text-lg font-semibold")) ]
+                  [];
+                tree_elem "input"
+                  [
+                    ("type", AttrConst (String "text"));
+                    ("value", AttrConst (String ""));
+                    ("onChange", AttrFunc (label 1));
+                    ( "className",
+                      AttrConst
+                        (String
+                           "w-16 rounded border border-stone-300 px-2 py-1 \
+                            text-center focus:border-transparent focus:ring-2 \
+                            focus:ring-orange-300 focus:outline-none") );
+                  ]
+                  [];
+              ];
+          timelines =
+            [
+              [
+                {
+                  action =
+                    {
+                      label = label 1;
+                      action_type = Input;
+                      arg = Some "Task 1";
+                    };
+                  edits =
+                    [
+                      ( [ Index 1 ],
+                        AttributeReplace ("value", Some (String "Task 1")) );
+                      ( [ Index 0 ],
+                        NodeInsert (Index 0, tree_const (String "Task 1")) );
+                    ];
+                };
+              ];
+              [
+                {
+                  action =
+                    {
+                      label = label 1;
+                      action_type = Input;
+                      arg = Some "Task 2";
+                    };
+                  edits =
+                    [
+                      ( [ Index 1 ],
+                        AttributeReplace ("value", Some (String "Task 2")) );
+                      ( [ Index 0 ],
+                        NodeInsert (Index 0, tree_const (String "Task 2")) );
+                    ];
+                };
+              ];
+            ];
+        },
+      Abstract.
+        {
+          sketch =
+            Elem
+              {
+                name = "div";
+                attrs =
+                  [
+                    ( "className",
+                      Const (String "flex flex-col items-center gap-2") );
+                  ];
+                children =
+                  List
+                    [
+                      Elem
+                        {
+                          name = "div";
+                          attrs =
+                            [
+                              ( "className",
+                                Const (String "text-lg font-semibold") );
+                            ];
+                          children =
+                            List
+                              [
+                                OptionMap { opt = Var 2; body = Access (Var 1) };
+                              ];
+                        };
+                      Elem
+                        {
+                          name = "input";
+                          attrs =
+                            [
+                              ("value", Access (Var 1));
+                              ("type", Const (String "text"));
+                              ("onChange", HandlerHole (label 1));
+                              ( "className",
+                                Const
+                                  (String
+                                     "w-16 rounded border border-stone-300 \
+                                      px-2 py-1 text-center \
+                                      focus:border-transparent focus:ring-2 \
+                                      focus:ring-orange-300 focus:outline-none")
+                              );
+                            ];
+                          children = List [];
+                        };
+                    ];
+              };
+          init = [ (Var 2, Null); (Var 1, Const (String "")) ];
+          timelines =
+            [
+              [
+                ( { label = label 1; action_type = Input; arg = Some "Task 1" },
+                  [
+                    (Var 2, Record [ (Var 1, Const (String "Task 1")) ]);
+                    (Var 1, Const (String "Task 1"));
+                  ] );
+              ];
+              [
+                ( { label = label 1; action_type = Input; arg = Some "Task 2" },
+                  [
+                    (Var 2, Record [ (Var 1, Const (String "Task 2")) ]);
+                    (Var 1, Const (String "Task 2"));
+                  ] );
+              ];
+            ];
+        } );
   ]
 
 let test_synthesis_1 () =

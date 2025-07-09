@@ -494,24 +494,28 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
                   (* Printf.printf "  SUCCESS with %s %s for key (%s, %s)\n" op_name (String.concat " " (List.map show_value op_args)) (show_var v_id_checking) (show_parameterizable_action p_action_checking); *)
                   found_rule := Some (op_name, op_args)
               | None ->
-                  Printf.eprintf "  WARNING: op_args_opt was None for %s\n"
-                    op_name)
+                  Logs.warn (fun m ->
+                      m "SynthesisWarning: op_args_opt was None for %s" op_name))
         candidate_ops;
 
       match !found_rule with
-      | Some (fname, fargs) ->
-          Hashtbl.add synthesized_rules key (fname, fargs) (* 찾은 규칙 저장 *)
+      | Some (fname, fargs) -> Hashtbl.add synthesized_rules key (fname, fargs)
       | None ->
-          if transitions <> [] then
-            Printf.eprintf
-              "Warning: SynthesisFailed for key (%s, %s): No single function \
-               explained all %d transitions.\n"
-              (show_var v_id_checking)
-              (show_parameterizable_action p_action_checking)
-              (List.length transitions)
-      (* 또는 예외 발생: raise (SynthesisFailed (Printf.sprintf "For key (%s, %s), no
-         single function explained all transitions." (show_var v_id_checking)
-         (show_parameterizable_action p_action_checking))) *))
+          if transitions <> [] then (
+            Logs.err (fun m ->
+                m
+                  "Warning: SynthesisFailed for key (%s, %s): No single \
+                   function explained all %d transitions.\n"
+                  (show_var v_id_checking)
+                  (show_parameterizable_action p_action_checking)
+                  (List.length transitions));
+            raise
+              (SynthesisFailed
+                 (Printf.sprintf
+                    "For key (%s, %s), no single function explained all \
+                     transitions."
+                    (show_var v_id_checking)
+                    (show_parameterizable_action p_action_checking)))))
     observations;
 
   synthesized_rules
@@ -722,9 +726,10 @@ module Llm_backend = struct
             let func = extract_function_from_response ~var:(fst key) response in
             Hashtbl.add synthesized_rules key func
         | Error e ->
-            Printf.eprintf "API Error for key %s: %s\n"
-              (show_parameterizable_action (snd key))
-              e)
+            Logs.err (fun m ->
+                m "API Error for key %s: %s\n"
+                  (show_parameterizable_action (snd key))
+                  e))
       keyed_responses;
 
     synthesized_rules
@@ -737,9 +742,10 @@ module Llm_backend = struct
       let* result = Api.call_gemini_api prompt in
       match result with
       | Error e ->
-          Printf.eprintf "API Error for key %s: %s\n"
-            (show_parameterizable_action (snd key))
-            e;
+          Logs.err (fun m ->
+              m "API Error for key %s: %s\n"
+                (show_parameterizable_action (snd key))
+                e);
           Lwt.return None
       | Ok response_str -> Lwt.return (Some (key, response_str))
     in

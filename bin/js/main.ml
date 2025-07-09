@@ -36,8 +36,10 @@ let synthesize (tree_src : string) (timelines : Demo.demo_timeline list) :
   Logs.info (fun m ->
       m "Synthesizing for this demo::: %s\n"
         (Abstract.show_abstraction_multi abs));
-  let result =
-    Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
+  let* result =
+    match Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules with
+    | result -> Ok result
+    | exception Synthesis.SynthesisFailed e -> Error e
   in
   Logs.info (fun m ->
       m "Synthesized rules: %s\n"

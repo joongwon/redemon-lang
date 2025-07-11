@@ -330,25 +330,28 @@ let synthesize ({ init; timelines; _ } : abstraction_multi) :
 
   (* 각 타임라인은 독립적으로 초기 상태(init)에서 시작 *)
   List.iter
-    (let current_s = ref init in
-     List.iter (fun (act, next_s) ->
-         let prev_s = !current_s in
-         let p_act = to_param_action act in
-         List.iter
-           (fun var ->
-             try
-               let old_val = lookup ~var prev_s in
-               let new_val = lookup ~var next_s in
-               let key = (var, p_act) in
-               let existing_obs =
-                 try Hashtbl.find observations key with Not_found -> []
-               in
-               (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
-               Hashtbl.replace observations key
-                 ((old_val, new_val, act) :: existing_obs)
-             with NotFound _ -> ())
-           all_vars;
-         current_s := next_s))
+    (fun timeline ->
+      let current_s = ref init in
+      List.iter
+        (fun (act, next_s) ->
+          let prev_s = !current_s in
+          let p_act = to_param_action act in
+          List.iter
+            (fun var ->
+              try
+                let old_val = lookup ~var prev_s in
+                let new_val = lookup ~var next_s in
+                let key = (var, p_act) in
+                let existing_obs =
+                  try Hashtbl.find observations key with Not_found -> []
+                in
+                (* 모든 타임라인의 관찰 결과를 하나의 키 아래에 누적 *)
+                Hashtbl.replace observations key
+                  ((old_val, new_val, act) :: existing_obs)
+              with NotFound _ -> ())
+            all_vars;
+          current_s := next_s)
+        timeline)
     timelines;
 
   let add_components_from_list l = List.iter add_const_to_components l in

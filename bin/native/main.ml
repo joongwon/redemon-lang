@@ -12,9 +12,6 @@ let counter_demo =
             tree_elem "span"
               [ ("className", AttrConst (String "font-semibold text-lg")) ]
               [ tree_const (Int 0) ];
-            tree_elem "span"
-              [ ("className", AttrConst (String "font-semibold text-lg")) ]
-              [ tree_const (Int 1) ];
             tree_elem "button"
               [
                 ( "className",
@@ -23,25 +20,27 @@ let counter_demo =
                 ("onClick", AttrFunc (label 1));
               ]
               [ tree_const (String "Increment") ];
+            tree_elem "button"
+              [
+                ( "className",
+                  AttrConst (String "bg-stone-500 text-white px-2 py-1 rounded")
+                );
+                ("onClick", AttrFunc (label 2));
+              ]
+              [ tree_const (String "Decrement") ];
           ];
       timelines =
         [
           [
             {
               action = { label = label 1; action_type = Click; arg = None };
-              edits =
-                [
-                  ([ Index 0; Index 0 ], ConstReplace (Int 1));
-                  ([ Index 1; Index 0 ], ConstReplace (Int 2));
-                ];
+              edits = [ ([ Index 0; Index 0 ], ConstReplace (Int 1)) ];
             };
+          ];
+          [
             {
-              action = { label = label 1; action_type = Click; arg = None };
-              edits =
-                [
-                  ([ Index 0; Index 0 ], ConstReplace (Int 2));
-                  ([ Index 1; Index 0 ], ConstReplace (Int 4));
-                ];
+              action = { label = label 2; action_type = Click; arg = None };
+              edits = [ ([ Index 0; Index 0 ], ConstReplace (Int (-1))) ];
             };
           ];
         ];
@@ -348,13 +347,22 @@ let () =
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Debug);
 
-  Lwt_main.run (synthesis_test ());
+  (*Lwt_main.run (synthesis_test ());*)
   let abs = Abstract.abstract_demo_multi counter_demo in
-  (* let result = Synthesis.synthesize abs |>
-     Synthesis.translate_synthesized_rules in let prog = Codegen. { view =
-     abs.sketch; data = Record (List.map (fun (v, _) -> (v, Texpr.Access v))
-     abs.init); handlers = result; states = abs.init; } in Codegen.show_prog
-     prog |> print_endline; Codegen.js_of_prog prog |> print_endline *)
+  let result =
+    Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
+  in
+  let prog =
+    Codegen.
+      {
+        view = abs.sketch;
+        data = Record (List.map (fun (v, _) -> (v, Texpr.Access v)) abs.init);
+        handlers = result;
+        states = abs.init;
+      }
+  in
+  Codegen.show_prog prog |> print_endline;
+  Codegen.js_of_prog prog |> print_endline;
   Codegen.js_of_abs abs |> print_endline;
   let abs = Abstract.abstract_demo_multi input_demo in
   Codegen.js_of_abs abs |> print_endline

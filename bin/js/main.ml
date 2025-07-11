@@ -18,15 +18,38 @@ let parse_program_str (program_str : string) : (Syntax.tree, string) Result.t =
   | exception Parser.Error ->
       Error (Printf.sprintf "%s: syntax error" (position lexbuf))
 
+(* TODO: This should be a library function *)
+let abstract (tree_src : string) (timelines : Demo.demo_timeline list) :
+    (Abstract.abstraction_multi, string) Result.t =
+  let ( let* ) x f = Result.bind x ~f in
+  let* tree = parse_program_str tree_src in
+  let demo = Demo.{ init = tree; timelines } in
+  let abs = Abstract.abstract_demo_multi demo in
+  Ok abs
+
 let synthesize (tree_src : string) (timelines : Demo.demo_timeline list) :
     (string, string) Result.t =
   let ( let* ) x f = Result.bind x ~f in
   let* tree = parse_program_str tree_src in
   let demo = Demo.{ init = tree; timelines } in
   let abs = Abstract.abstract_demo_multi demo in
-  let result =
-    Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules
+  Logs.info (fun m ->
+      m "Synthesizing for this demo::: %s\n"
+        (Abstract.show_abstraction_multi abs));
+  let* result =
+    match Synthesis.synthesize abs |> Synthesis.translate_synthesized_rules with
+    | result -> Ok result
+    | exception Synthesis.SynthesisFailed e -> Error e
   in
+  Logs.info (fun m ->
+      m "Synthesized rules: %s\n"
+        (result
+        |> List.map ~f:Synthesis.show_synthesized_rule
+        |> String.concat ~sep:",\n"));
+
+  (* Check if the result is empty *)
+
+  (* Generate the program *)
   let prog =
     Codegen.
       {
@@ -59,6 +82,37 @@ let () =
          | Error err ->
              Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
 
+       method prompts tree_src steps =
+         Logs.debug (fun m -> m "Steps: %s" steps);
+
+         let timelines =
+           steps |> Yojson.Safe.from_string
+           |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                [%of_yojson: Demo.demo_timeline list])
+         in
+         Logs.info (fun m ->
+             m "Steps to synthesize: %s"
+               ([%show: Demo.demo_timeline list] timelines));
+         (let ( let* ) x f = Result.bind x ~f in
+          let* abstraction = abstract tree_src timelines in
+          let keyed_prompts =
+            Synthesis.Llm_backend.extract_prompts abstraction
+          in
+          Ok keyed_prompts)
+         |> function
+         | Ok keyed_prompts ->
+             let json =
+               keyed_prompts
+               |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                    [%yojson_of: (Synthesis.key * string) list])
+               |> Yojson.Safe.to_string
+             in
+             (* TODO: Maybe separate keys and prompts *)
+             Js.Unsafe.obj
+               [| ("prompts", json |> Js.string |> Js.Unsafe.inject) |]
+         | Error err ->
+             Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
+
        method synthesize tree_src steps =
          (* Use JSON-encoded string of demo_step list *)
          Logs.debug (fun m -> m "Steps: %s" steps);
@@ -73,6 +127,28 @@ let () =
                ([%show: Demo.demo_step list list] steps));
 
          synthesize tree_src steps |> function
+         | Ok js_code ->
+             Js.Unsafe.obj
+               [| ("code", js_code |> Js.string |> Js.Unsafe.inject) |]
+         | Error err ->
+             Js.Unsafe.obj [| ("error", err |> Js.string |> Js.Unsafe.inject) |]
+
+       method extractParams tree_src steps =
+         (* Use JSON-encoded string of demo_step list *)
+         Logs.debug (fun m -> m "Steps: %s" steps);
+
+         let steps =
+           steps |> Yojson.Safe.from_string
+           |> Ppx_yojson_conv_lib.Yojson_conv.Primitives.(
+                [%of_yojson: Demo.demo_step list list])
+         in
+
+         (let ( let* ) x f = Result.bind x ~f in
+          let* tree = parse_program_str tree_src in
+          let demo = Demo.{ init = tree; timelines = steps } in
+          let abs = Abstract.abstract_demo_multi demo in
+          Ok (Codegen.js_of_abs abs))
+         |> function
          | Ok js_code ->
              Js.Unsafe.obj
                [| ("code", js_code |> Js.string |> Js.Unsafe.inject) |]

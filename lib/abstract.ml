@@ -54,18 +54,17 @@ let list_of_value (v : value) : value list =
   | List lst -> lst
   | _ -> raise (Invalid_argument "Expected List for list_of_value")
 
-(* find the index of i-th non-null node *)
-let convert_index ?(include_length = false) (Index i) (es : expr list)
-    (env : record) =
+(* find the index of (i-1)-th (or 0) and i-th non-null node *)
+let convert_index ~include_length (Index i) (es : expr list) (env : record) =
   let indices =
     es
     |> List.mapi (fun j e -> match eval e env with Null -> None | _ -> Some j)
     |> List.filter_map Fun.id
   in
   let indices =
-    if include_length then indices @ [ List.length es ] else indices
+    if include_length then (0 :: indices) @ [ List.length es ] else 0 :: indices
   in
-  List.nth indices i
+  (List.nth indices i, List.nth indices (i + 1))
 
 let abstract_step (edit : edit) (e : expr) (env : record) :
     expr * (record -> record) * record =
@@ -134,7 +133,7 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
       in
       (e', s, env')
   | NodeDelete i, Elem ({ children = List children; _ } as elem) ->
-      let i = convert_index i children env in
+      let _, i = convert_index ~include_length:false i children env in
       let var = fresh_var env in
       let child = List.nth children i in
       let vars = free_vars child in
@@ -165,27 +164,84 @@ let abstract_step (edit : edit) (e : expr) (env : record) :
         record_update env var (List (List.filteri (fun j _ -> j <> i) lst))
       in
       (e, Fun.id, env')
-  | NodeInsert (i, new_tree), Elem ({ children = List children; _ } as elem) ->
-      let i = convert_index ~include_length:true i children env in
-      if i > List.length children then
-        raise (Invalid_argument "Index out of bounds for insertion");
-      let new_texpr = expr_of_tree new_tree in
-      let var = fresh_var env in
-      let children' =
-        if i = List.length children then
-          children @ [ OptionMap { opt = var; body = new_texpr } ]
-        else
-          List.mapi
-            (fun j c ->
-              if j = i then [ OptionMap { opt = var; body = new_texpr }; c ]
-              else [ c ])
-            children
-          |> List.concat
+  | NodeInsert (i, new_tree), Elem ({ children = List children; _ } as elem)
+    -> (
+      let i1, i2 = convert_index ~include_length:true i children env in
+      (* There are two cases:
+          - OptionMap of true at [i1, i2)
+          - New tree at i2
+       *)
+      (* try to find OptionMap at [i1, i2) *)
+      let unification =
+        children |> List.to_seq |> Seq.drop i1
+        |> Seq.take (i2 - i1)
+        |> Seq.find_mapi (fun i child ->
+               let i = i + i1 in
+               match (child, new_tree) with
+               | OptionMap { opt; body = Const c }, Const c' when c = c' ->
+                   let e' = Elem elem in
+                   let s = Fun.id in
+                   let env' = record_update env opt (Record []) in
+                   Some (e', s, env')
+               | OptionMap { opt; body = Const c }, Const c' when c <> c' ->
+                   let var = fresh_var [] in
+                   let children' =
+                     List.mapi
+                       (fun j c ->
+                         if j = i then OptionMap { opt; body = Access var }
+                         else c)
+                       children
+                   in
+                   let e' = Elem { elem with children = List children' } in
+                   let s env =
+                     match List.assoc opt env with
+                     | Record r ->
+                         record_update env opt
+                           (Record (record_update r var (Const c)))
+                     | Null -> env
+                     | _ -> raise (Invalid_argument "Expected Record or Null")
+                   in
+                   let env' =
+                     record_update env opt (Record [ (var, Const c') ])
+                   in
+                   Some (e', s, env')
+               | OptionMap { opt; body = Access var }, Const c' ->
+                   let children' =
+                     List.mapi
+                       (fun j c ->
+                         if j = i then OptionMap { opt; body = Const c' } else c)
+                       children
+                   in
+                   let e' = Elem { elem with children = List children' } in
+                   let s = Fun.id in
+                   let env' =
+                     record_update env opt (Record [ (var, Const c') ])
+                   in
+                   Some (e', s, env')
+               | _ -> None)
       in
-      let e' = Elem { elem with children = List children' } in
-      let s env = record_update env var Null in
-      let env' = record_update env var (Record []) in
-      (e', s, env')
+      match unification with
+      | Some r -> r
+      | None ->
+          (* no OptionMap, insert new tree *)
+          let new_texpr = expr_of_tree new_tree in
+          let var = fresh_var env in
+          let children' =
+            if i2 = List.length children then
+              children @ [ OptionMap { opt = var; body = new_texpr } ]
+            else
+              List.mapi
+                (fun j c ->
+                  if j = i2 then
+                    [ OptionMap { opt = var; body = new_texpr }; c ]
+                  else [ c ])
+                children
+              |> List.concat
+          in
+          let e' = Elem { elem with children = List children' } in
+          let s env = record_update env var Null in
+          let env' = record_update env var (Record []) in
+          (e', s, env'))
   | AttributeReplace (key, attr), Elem ({ attrs; _ } as elem) -> (
       match List.assoc_opt key attrs with
       | Some (Access var) ->
@@ -230,9 +286,9 @@ let s_value (s : record -> record) (v : value) : value =
   | Record r -> Record (s r)
   | _ -> raise (Invalid_argument "Expected Record for apply_substitution_value")
 
-(* abstract_step_traverse path edit e env0 = (e', s, env') =>
-   (forall env ~ env0, teval e' (s env) = teval e env) AND
-   teval e' env' = apply_traverse path edit (teval e' (s env0)) *)
+(* abstract_step_traverse path edit e env0 = (e', s, env') => (forall env ~
+   env0, teval e' (s env) = teval e env) AND teval e' env' = apply_traverse path
+   edit (teval e' (s env0)) *)
 let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
     (env : record) : expr * (record -> record) * record =
   match (e, path) with
@@ -259,7 +315,7 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
       (* no more path, apply the edit directly *)
       abstract_step edit e env
   | Elem ({ children = List children; _ } as elem), i :: rest ->
-      let i = convert_index i children env in
+      let _, i = convert_index ~include_length:false i children env in
       if i >= List.length children then
         raise (Invalid_argument "Index out of bounds for path");
       let child_e = List.nth children i in
@@ -297,26 +353,16 @@ let rec abstract_step_traverse (path : path) (edit : edit) (e : expr)
   | _ ->
       raise (Invalid_argument "Unsupported expression or path for abstraction")
 
-(*
-let init_abstraction (init : tree) : abstraction =
-  let sketch = expr_of_tree init in
-  { sketch; init = []; steps = [] }
+(* let init_abstraction (init : tree) : abstraction = let sketch = expr_of_tree
+   init in { sketch; init = []; steps = [] }
 
-let add_step ({ sketch; init; steps } : abstraction)
-    ({ action; edits } : demo_step) : abstraction =
-  let last_env =
-    match List.rev steps with [] -> init | (_, env) :: _ -> env
-  in
-  let sketch', s, env' =
-    List.fold_left
-      (fun (e, s, env) (path, edit) ->
-        let e', s', env' = abstract_step_traverse path edit e env in
-        (e', Fun.compose s' s, env'))
-      (sketch, Fun.id, last_env) edits
-  in
-  let steps' = List.map (fun (a, e) -> (a, s e)) steps @ [ (action, env') ] in
-  { sketch = sketch'; init = s init; steps = steps' }
-  *)
+   let add_step ({ sketch; init; steps } : abstraction) ({ action; edits } :
+   demo_step) : abstraction = let last_env = match List.rev steps with [] ->
+   init | (_, env) :: _ -> env in let sketch', s, env' = List.fold_left (fun (e,
+   s, env) (path, edit) -> let e', s', env' = abstract_step_traverse path edit e
+   env in (e', Fun.compose s' s, env')) (sketch, Fun.id, last_env) edits in let
+   steps' = List.map (fun (a, e) -> (a, s e)) steps @ [ (action, env') ] in {
+   sketch = sketch'; init = s init; steps = steps' } *)
 
 let abstract_demo_multi ({ init; timelines } : demo) : abstraction_multi =
   let add_edit (sketch, env, s) (path, edit) =

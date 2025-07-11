@@ -3,7 +3,7 @@
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx ppx_deriving.show ppx_yojson_conv))
- (libraries redemon_lang base logs.browser js_of_ocaml))
+ (libraries redemon_lang base logs.browser js_of_ocaml redemon_with_llm_js))
 
 (rule
  (target lang.bc.js)

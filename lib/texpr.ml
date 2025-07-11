@@ -1,6 +1,7 @@
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives
 open Tree.Syntax
 
-type var = Var of int [@@unboxed] [@@deriving eq, show]
+type var = Var of int [@@unboxed] [@@deriving eq, show, yojson]
 
 (* an expression accepting single record (namely, 'root') as an environment *)
 type expr =
@@ -17,11 +18,11 @@ type expr =
       lst : var; (* lst : list of record *)
       body : expr; (* body : const | elem *)
     }
+  (* root.x.map(λroot. body) *)
   | Fun of {
       func : string; (* e.g. "add", "mul" *)
       args : expr list; (* e.g. [root.x, root.y] *)
     }
-(* root.x.map(λroot. body) *)
 
 and elem = {
   name : string;
@@ -39,6 +40,15 @@ type value =
   | Record of record
 
 and record = (var * value) list [@@deriving eq, show]
+
+exception NotFound of string
+
+let lookup ~(var : var) (r : record) : value =
+  try List.assoc var r
+  with Not_found ->
+    raise
+      (NotFound
+         (Printf.sprintf "Variable %s not found in record" (show_var var)))
 
 (* definitional interpreter for expressions *)
 let rec eval (e : expr) (root : record) : value =
@@ -58,11 +68,12 @@ let rec eval (e : expr) (root : record) : value =
       let children =
         match eval children root with
         | List es ->
-            List.map
+            List.filter_map
               (fun e' ->
                 match e' with
-                | Const c -> tree_const c
-                | Tree e'' -> e''
+                | Const c -> Some (tree_const c)
+                | Tree e'' -> Some e''
+                | Null -> None
                 | _ -> failwith "Expected a constant or tree element")
               es
         | _ -> failwith "Expected a list"
